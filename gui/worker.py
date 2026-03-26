@@ -199,6 +199,9 @@ class MeasurementWorker(QThread):
         sim_current    = {}
         # True once stage 1 passed -- next query is the 6th (stage 2) reading
         stage1_passed  = [False] * total_channels
+        # Consecutive bridge query failures per channel -- auto-skip after 3
+        fail_count     = [0] * total_channels
+        MAX_FAILS      = 3
 
         while not all(sensor_stable) and self._running:
             self.log(f"      Scan {scan}  --  Batch {batch_no}")
@@ -268,8 +271,17 @@ class MeasurementWorker(QThread):
                     if self.bridge:
                         ratio = bridge_query_channel(self.bridge, chno + 1)
                         if ratio is None:
-                            self.log(f"      ⚠ [{label(chno)}] bridge query failed")
+                            fail_count[chno] += 1
+                            if fail_count[chno] >= MAX_FAILS:
+                                self.log(
+                                    f"      ✗ [{label(chno)}] no bridge response"
+                                    f" after {MAX_FAILS} attempts -- sensor skipped"
+                                )
+                                sensor_stable[chno] = True  # unblock loop
+                            else:
+                                self.log(f"      ⚠ [{label(chno)}] bridge query failed")
                             continue
+                        fail_count[chno] = 0
                     else:
                         ratio = _sim_read(chno)
 
