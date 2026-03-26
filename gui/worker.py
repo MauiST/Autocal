@@ -358,6 +358,16 @@ class MeasurementWorker(QThread):
                         self.log(f"      [{label(chno)}] waiting for reference...")
                         continue
 
+                    # If buffer already has 5 and reference just became ready
+                    # -- run Stage 1 immediately without collecting another reading
+                    if chno > 0 and len(sensor_buffers[chno]) == 5 and ref_temperature is not None:
+                        readings = list(sensor_buffers[chno])
+                        passed1, spread = run_stability_check(readings)
+                        self.stage_signal.emit(label(chno), 1, passed1)
+                        if passed1:
+                            stage1_passed[chno] = True
+                        continue
+
                     if self.bridge:
                         ratio = bridge_query_channel(self.bridge, chno + 1)
                         if ratio is None:
