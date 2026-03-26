@@ -219,6 +219,12 @@ class MeasurementWorker(QThread):
                 if sensor_stable[chno]:
                     continue
 
+                # ── Reference exits once all DUTs are stable ───────
+                if chno == 0 and all(sensor_stable[1:]):
+                    sensor_stable[0] = True
+                    self.log(f"      ✓ REF [{ref_name}] -- all DUTs stable, reference scan complete")
+                    continue
+
                 # ── SCAN TIMEOUT -- auto-skip if exceeded ──────────
                 scan_count[chno] += 1
                 if chno > 0 and scan_count[chno] > MAX_SCANS:
