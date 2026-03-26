@@ -10,7 +10,8 @@ help effectively without needing the full chat history.
 
 Automated 4-point calibration system for PT100 temperature sensors using:
 - **Isotech Micro-K 70** precision AC resistance bridge (GPIB or RS-232)
-- **2x TwoTrees TTC3018S** CNC machines as automated pogo-pin connectors
+- **1x TwoTrees TTC3018S** CNC machine as automated pogo-pin connector
+  (X axis = reference SPRT, Y axis = batch slot, Z axis = connect/disconnect)
 - **PySide6** GUI running on Windows or Revolution Pi (industrial Linux)
 
 ### Calibration Points
@@ -27,8 +28,6 @@ Automated 4-point calibration system for PT100 temperature sensors using:
 ```
 Autocal/
 ├── main.py                      # Entry point
-├── main_window.py               # Main PySide6 GUI (sidebar navigation)
-├── worker.py                    # QThread measurement worker
 ├── config.py                    # Config loader (DB → runtime variables)
 ├── create_db.py                 # Creates fresh Meas.db from scratch
 ├── requirements.txt
@@ -37,7 +36,7 @@ Autocal/
 │
 ├── cnc/
 │   ├── __init__.py              # Required -- must exist
-│   └── control.py               # GRBL serial control for TTC3018S
+│   └── control.py               # GRBL serial control (single CNC, 3 axes)
 │
 ├── db/
 │   ├── __init__.py
@@ -46,6 +45,8 @@ Autocal/
 │
 ├── gui/
 │   ├── __init__.py
+│   ├── main_window.py           # Main PySide6 GUI (sidebar navigation)
+│   ├── worker.py                # QThread measurement worker
 │   ├── styles.py                # Neumorphic light theme (NEU_STYLE)
 │   ├── progress_dialog.py       # Calibration progress popup
 │   └── sim_dialog.py            # Simulation mode sliders
@@ -56,31 +57,30 @@ Autocal/
 │   ├── bridge_gpib.py           # pyvisa GPIB driver
 │   └── bridge_rs232.py          # pyserial RS-232 driver
 │
-└── measurement/
-    ├── __init__.py
-    ├── its90.py                 # ITS-90 temperature calculation
-    ├── cvd.py                   # Callendar-Van Dusen PT100
-    └── stability.py             # 2-stage stability check
+├── measurement/
+│   ├── __init__.py
+│   ├── its90.py                 # ITS-90 temperature calculation
+│   ├── cvd.py                   # Callendar-Van Dusen PT100
+│   └── stability.py             # 2-stage stability check
+│
+└── tools/
+    └── report.py                # Calibration report text file generator
 ```
 
 ---
 
 ## Hardware Setup
 
-### CNC 1 -- Reference SPRT connector
-- Controls which reference SPRT is connected
-- X axis: 4 positions (one per bath)
-- Z axis: lowers/raises pogo pins to make contact
-- Board: MakerBase MKS DLC32 (GRBL, USB serial)
+### CNC -- Single machine, 3 axes
+- **X axis**: selects which reference SPRT is connected (4 positions)
+- **Y axis**: selects which batch slot is connected (14 positions total)
+- **Z axis**: lowers/raises pogo pins to make/break contact (shared)
+- Board: MakerBase MKS DLC32 (GRBL firmware, USB serial)
 - Limit switches: NC type, `$5=1` in GRBL
+- **Homing:** currently disabled (`$22=0`) -- limit switches being installed.
+  Once installed: set `$22=1`, `$5=1` (NC switches), test `$H`.
 
-### CNC 2 -- Batch sensor connector
-- Controls which batch of PT100s is connected
-- X axis: 10 positions (4 for Bath 1, 2 each for Bath 2/3/4)
-- Z axis: lowers/raises pogo pins
-- Same board and wiring as CNC 1
-
-### Reference SPRT positions (CNC 1 X axis):
+### Reference SPRT positions (CNC X axis):
 ```
 5003 → Bath 1-1 and Bath 1-2
 5004 → Bath 2
@@ -88,18 +88,20 @@ Autocal/
 4999 → Bath 4
 ```
 
-### Batch positions (CNC 2 X axis):
+### Batch positions (CNC Y axis):
 ```
-Bath 1-1: slots 1-4
+Bath 1-1: slots 1-4   (4 batches × 6 sensors each)
 Bath 1-2: slots 1-4
 Bath 2:   slots 1-2
 Bath 3:   slots 1-2
 Bath 4:   slots 1-2
+Total: 14 Y positions
 ```
 
 ### Pogo pins:
 - Reference connectors: 4 pins each (4-wire Kelvin)
 - Batch connectors: 24 pins each (6 sensors × 4 wires)
+- Max 6 active DUT sensors per batch → max 7 bridge channels (1 ref + 6 DUT)
 
 ---
 
@@ -120,7 +122,7 @@ All settings in DB `Config` table. Priority chain:
 3. Module-level defaults in `config.py` (absolute fallback)
 
 Call `config.load_config(conn)` at startup -- populates all module-level
-variables like `config.BRIDGE_COMM`, `config.CNC1_X_POSITIONS` etc.
+variables like `config.BRIDGE_COMM`, `config.CNC_X_POSITIONS` etc.
 
 ### Bridge Communication
 `instruments/bridge.py` is a factory -- reads `config.BRIDGE_COMM`
@@ -129,19 +131,45 @@ Both expose the same interface:
 ```python
 bridge.connect()
 bridge.close()
-bridge.query_channel(channel)  # returns float ratio or None
+bridge.query_channel(channel)  # returns float ratio or None (never raises)
 ```
+**Important:** `query_channel` must always return `None` on any error,
+never raise. Both drivers have this fixed. Invalid channel returns `None`.
 
 ### CNC Control
-`cnc/control.py` -- GRBL over pyserial.
+`cnc/control.py` -- GRBL over pyserial. Single CNC, 3 axes.
 Key functions:
 - `cnc_connect(port, baud)` -- open serial, soft reset, set G90
-- `cnc1_connect(cnc, sensor_id)` -- move X to ref position + Z down
-- `cnc2_connect(cnc, bath_no, slot)` -- move X to batch position + Z down
-- `cnc1_disconnect(cnc)` / `cnc2_disconnect(cnc)` -- Z up
+- `cnc_connect_reference(cnc, sensor_id)` -- move X to ref position (Z stays up)
+- `cnc_connect_batch(cnc, bath_no, slot)` -- move Y to batch slot then lower Z
+- `cnc_disconnect(cnc)` -- raise Z
+- `cnc_jog(cnc, direction, step, feed)` -- manual jog (X+/X-/Y+/Y-/Z+/Z-)
 
-**Homing:** currently disabled (`$22=0`) -- limit switches being installed.
-Once switches are installed: set `$22=1`, `$5=1` (NC switches), test `$H`.
+Config keys used: `CNC_X_POSITIONS` (dict keyed by sensor_id),
+`CNC_Y_POSITIONS` (dict keyed by bath_no + slot), `CNC_FEED_RATE`,
+`CNC_Z_CONNECT`, `CNC_Z_CLEAR`.
+
+### Measurement Worker Scan Loop (`gui/worker.py`)
+Each channel has two distinct states:
+
+1. **Collecting** (scans 1–5): one bridge query per scan per channel.
+   After 5 readings fill the buffer, Stage 1 (spread check) is evaluated.
+   If Stage 1 passes, channel moves to `stage1_passed` state.
+
+2. **stage1_passed** (scan 6+): one bridge query only -- the 6th reading.
+   Stage 2 (avg of 5 vs 6th reading) is evaluated.
+   - Passes → channel marked stable, result saved.
+   - Fails → resets to Collecting (needs new readings).
+
+**A channel is never queried more than once per scan iteration.**
+This was a bug that caused double queries from scan 5 onwards, flooding
+the log with bridge query fail messages and crashing the session log.
+
+### Disable CNC Mode
+Toggle button on the CNC page. When enabled (`self.cnc_disabled = True`):
+- All CNC moves are skipped (worker logs "DISABLED -- manual" instead)
+- Session runs normally, sensors connected manually
+- Worker receives `cnc_disabled=True` at session start
 
 ### Skip Sensor
 Skipped sensors: `Skipped=1` in MeasTemp, shown as `⊘ SKIP` in orange.
@@ -149,9 +177,21 @@ MeasTemp row left blank -- sensor can be re-measured in future session.
 
 ### Bath 1-2 Drift Warning
 After Bath 1-2 measurement, compares against Bath 1-1:
-- Resistance drift > 20mK → warning + require confirmation
-- Bath temperature drift > 10mK → warning + require confirmation
+- Resistance drift > 20mK → warning
+- Bath temperature drift > 10mK → warning
 Logic in `db/queries.py` `compare_bath1_results()`
+
+### Calibration Report Generator (`tools/report.py`)
+After a session completes, the "Save Calibration Report" button on the
+Progress page calls `tools.report.generate_reports(conn)`.
+
+- One `.txt` file per certificate number
+- Saved to `~/Documents/MeasDB/Reports/`
+- Filename: `Measured {N} - Certificate {cert_no}.txt`
+  (N auto-increments so previous reports are never overwritten)
+- Contains: per-sensor table with bath points, ref temp, resistance,
+  sensor temp, ΔRes (Ω), ΔTemp (mK), EN60751 class, overall class,
+  Bath 1-2 second reading
 
 ---
 
@@ -166,21 +206,23 @@ Sidebar navigation with 4 pages:
 - Start/Stop session buttons
 
 ### CNC Page
-- Connector 1 and Connector 2 side by side
-- Port entry, Connect/Disconnect, status
-- Manual jog: X−, X+, Z−, Z+, Home (disabled until limit switches)
-- Step dropdown: 0.1, 0.5, 1, 5, 10, 50, 100 mm
-- Connect Pins / Retract Pins
-- Position buttons (move to stored X positions)
+- **Disable CNC** toggle button at top (grey = active, red = disabled/manual)
+- Single connection panel: Port, Baud, Connect/Disconnect, status dot
+- Manual jog: X−, X+, Y−, Y+, Z−, Z+, Home; step dropdown
+- Connect Pins / Retract Pins buttons
+- X axis position buttons (move to stored reference positions)
+- Y axis position buttons (move to stored batch slot positions)
 
 ### Progress Page
 - Batch queue table
 - Live readings table (double height)
+- **Save Calibration Report** button (enabled after session completes)
 
 ### Config Page (password protected)
 Password: SenmaticLab1 (SHA-256 hashed in DB)
 Tabs: Communication | SPRT Sensors | Standard Resistors |
       Bath Settings | Stability & Warnings | CNC Settings
+CNC Settings tab: single Connection group + X axis group + Y axis group.
 Change Password button opens separate dialog.
 
 ---
@@ -195,7 +237,8 @@ Tables:
 - `MeasTemp` -- working table for active calibration session
 - `ReferenceThermometers` -- SPRT coefficients (4 sensors pre-loaded)
 - `ReferenceResistors` -- calibrated 25Ω and 100Ω values
-- `Config` -- all 65+ app settings
+- `Config` -- all app settings (single CNC keys: cnc_port, cnc_baud,
+  cnc_feed_rate, cnc_z_connect, cnc_z_clear, cnc_x_ref_*, cnc_y_bath*_slot_*)
 - `CalibrationResults` -- permanent record after sessions complete
 
 ---
@@ -217,10 +260,9 @@ Standard resistors:
 
 ## Known Issues / TODO
 
-- [ ] Update `worker.py` CNC calls to use `cnc1_connect(sensor_id)`
-      and `cnc2_connect(bath_no, slot)` with correct arguments
-- [ ] Install limit switches on both CNCs, enable homing in GRBL
-- [ ] Test full session flow with DB connected
+- [ ] Install limit switches on both CNC axes, enable homing in GRBL
+      (`$22=1`, `$5=1`, test `$H`)
+- [ ] Test full session flow with real bridge and DB connected
 - [ ] Test bridge RS-232 on Revolution Pi
 - [ ] GitHub Actions CI for syntax checking
 
@@ -231,7 +273,7 @@ Standard resistors:
 ### `No module named 'cnc.control'`
 - Make sure `cnc/__init__.py` exists (can be empty)
 - Run app from project root: `python main.py`
-- File must be named `control.py` not `cnc_control.py`
+- File must be named `control.py`
 
 ### Config not persisting after restart
 - `config.load_config(conn)` must be called before `_build_ui()`
@@ -247,3 +289,13 @@ Standard resistors:
 - Device must be physically connected before port appears
 - Check Device Manager for actual COM number
 - Update in Config → CNC Settings and save to DB
+
+### Bridge query fail messages / session log crash
+- Root cause was double bridge queries per scan (fixed in worker.py)
+- Each channel now gets exactly one query per scan iteration
+- `query_channel` in both drivers returns None (never raises) on any error
+
+### Worker thread stops after scan 1 (silent crash)
+- Any unhandled exception in `_measure_batch` used to silently kill the thread
+- Fixed: `_measure_batch` is wrapped in try/except with full traceback logged
+- If this happens again, check session log for the traceback
