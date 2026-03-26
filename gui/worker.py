@@ -195,8 +195,10 @@ class MeasurementWorker(QThread):
         def label(chno):
             return f'REF {ref_name}' if chno == 0 else active_serials[chno - 1]
 
-        scan        = 1
-        sim_current = {}
+        scan           = 1
+        sim_current    = {}
+        # True once stage 1 passed -- next query is the 6th (stage 2) reading
+        stage1_passed  = [False] * total_channels
 
         while not all(sensor_stable) and self._running:
             self.log(f"      Scan {scan}  --  Batch {batch_no}")
@@ -205,88 +207,90 @@ class MeasurementWorker(QThread):
                 if sensor_stable[chno]:
                     continue
 
-                bridge_channel = chno + 1
-
-                if self.bridge:
-                    ratio = bridge_query_channel(self.bridge, bridge_channel)
-                    if ratio is None:
-                        self.log(f"      ⚠ [{label(chno)}] bridge query failed")
-                        continue
-                else:
-                    if chno not in sim_current:
-                        sim_current[chno] = (
-                            self.sim_config['ref_ratio'] if chno == 0
+                # ── SIMULATION helper ──────────────────────────────
+                def _sim_read(c):
+                    if c not in sim_current:
+                        sim_current[c] = (
+                            self.sim_config['ref_ratio'] if c == 0
                             else self.sim_config['dut_ratio']
                         )
-                    step_sigma = (
-                        self.sim_config['ref_variance'] if chno == 0
+                    sigma = (
+                        self.sim_config['ref_variance'] if c == 0
                         else self.sim_config['dut_variance']
                     ) * 0.01
-                    sim_current[chno] += random.normalvariate(0, step_sigma)
-                    ratio = sim_current[chno]
+                    sim_current[c] += random.normalvariate(0, sigma)
+                    return sim_current[c]
 
-                sensor_buffers[chno].append(ratio)
-                self.reading_signal.emit(label(chno), ratio)
-                self.log(
-                    f"      [{label(chno)}]  ratio: {ratio:.9f}"
-                    f"  (buffer: {len(sensor_buffers[chno])}/5)"
-                )
-                time.sleep(0.5)
-
-            # Stability checks
-            for chno in range(total_channels):
-                if sensor_stable[chno]:
-                    continue
-                buf = sensor_buffers[chno]
-                if len(buf) < 5:
-                    continue
-                if chno > 0 and ref_temperature is None:
-                    self.log(f"      [{label(chno)}] waiting for reference...")
-                    continue
-
-                # Stage 1
-                readings = list(buf)[-5:]
-                passed1, spread = run_stability_check(readings)
-                self.stage_signal.emit(label(chno), 1, passed1)
-                if not passed1:
-                    continue
-
-                # Stage 2
-                if self.bridge:
-                    sixth = bridge_query_channel(self.bridge, chno + 1)
-                    if sixth is None:
+                # ── STATE: waiting for 6th (stage-2) reading ───────
+                if stage1_passed[chno]:
+                    if chno > 0 and ref_temperature is None:
+                        self.log(f"      [{label(chno)}] waiting for reference...")
                         continue
+
+                    if self.bridge:
+                        sixth = bridge_query_channel(self.bridge, chno + 1)
+                        if sixth is None:
+                            self.log(
+                                f"      ⚠ [{label(chno)}] 6th reading failed"
+                                f" -- retrying next scan"
+                            )
+                            stage1_passed[chno] = False   # collect new readings
+                            continue
+                    else:
+                        sixth = _sim_read(chno)
+
+                    readings = list(sensor_buffers[chno])
+                    passed2, delta = run_stage2_check(readings, sixth)
+                    self.stage_signal.emit(label(chno), 2, passed2)
+                    if not passed2:
+                        stage1_passed[chno] = False       # failed -- re-collect
+                        continue
+
+                    # ── STABLE ────────────────────────────────────
+                    sensor_stable[chno]  = True
+                    final_readings[chno] = sixth
+
+                    if chno == 0:
+                        self._handle_reference_stable(
+                            sixth, ref_coefficients, r_standard_25,
+                            ref_name, bath_no
+                        )
+                        ref_temperature = self._last_ref_temperature
+                    else:
+                        serial = active_serials[chno - 1]
+                        self._handle_sensor_stable(
+                            conn, serial, sixth, r_standard_100,
+                            ref_temperature, bath_no
+                        )
+
+                # ── STATE: collecting readings (scans 1–5) ─────────
                 else:
-                    step_sigma = (
-                        self.sim_config['ref_variance'] if chno == 0
-                        else self.sim_config['dut_variance']
-                    ) * 0.01
-                    sim_current[chno] += random.normalvariate(0, step_sigma)
-                    sixth = sim_current[chno]
+                    if self.bridge:
+                        ratio = bridge_query_channel(self.bridge, chno + 1)
+                        if ratio is None:
+                            self.log(f"      ⚠ [{label(chno)}] bridge query failed")
+                            continue
+                    else:
+                        ratio = _sim_read(chno)
 
-                passed2, delta = run_stage2_check(readings, sixth)
-                self.stage_signal.emit(label(chno), 2, passed2)
-                if not passed2:
-                    continue
-
-                # ── STABLE ──────────────────────────────────
-                sensor_stable[chno]  = True
-                final_readings[chno] = sixth
-
-                if chno == 0:
-                    self._handle_reference_stable(
-                        sixth, ref_coefficients, r_standard_25,
-                        ref_name, bath_no
+                    sensor_buffers[chno].append(ratio)
+                    self.reading_signal.emit(label(chno), ratio)
+                    self.log(
+                        f"      [{label(chno)}]  ratio: {ratio:.9f}"
+                        f"  (buffer: {len(sensor_buffers[chno])}/5)"
                     )
-                    # Read back ref_temperature from what was set
-                    ref_temperature = self._last_ref_temperature
+                    time.sleep(0.5)
 
-                else:
-                    serial = active_serials[chno - 1]
-                    self._handle_sensor_stable(
-                        conn, serial, sixth, r_standard_100,
-                        ref_temperature, bath_no
-                    )
+                    # Check stage 1 once buffer has 5 readings
+                    if len(sensor_buffers[chno]) == 5:
+                        if chno > 0 and ref_temperature is None:
+                            self.log(f"      [{label(chno)}] waiting for reference...")
+                            continue
+                        readings = list(sensor_buffers[chno])
+                        passed1, spread = run_stability_check(readings)
+                        self.stage_signal.emit(label(chno), 1, passed1)
+                        if passed1:
+                            stage1_passed[chno] = True   # 6th reading next scan
 
             scan += 1
 
