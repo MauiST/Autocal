@@ -879,6 +879,22 @@ class MainWindow(QMainWindow):
         readings_v.addWidget(self.readings_table)
         v.addWidget(readings_group)
 
+        # Save Report button (enabled when session completes)
+        report_h = QHBoxLayout()
+        self.save_report_btn = QPushButton("💾  Save Calibration Report")
+        self.save_report_btn.setFixedHeight(36)
+        self.save_report_btn.setEnabled(False)
+        self.save_report_btn.setStyleSheet(
+            "QPushButton{border:1.5px solid #4a7fa5;color:#4a7fa5;"
+            "border-radius:8px;font-weight:bold;}"
+            "QPushButton:enabled:hover{background-color:#4a7fa5;color:white;}"
+            "QPushButton:disabled{color:#b0b8c0;border-color:#b0b8c0;}"
+        )
+        self.save_report_btn.clicked.connect(self._save_reports)
+        report_h.addStretch()
+        report_h.addWidget(self.save_report_btn)
+        v.addLayout(report_h)
+
         return page
 
     # ----------------------------------------------------------
@@ -1588,8 +1604,28 @@ class MainWindow(QMainWindow):
         self.log("=" * 50)
         self.start_btn.setEnabled(True)
         self.stop_btn.setEnabled(False)
+        self.save_report_btn.setEnabled(True)
         for t in self.qtimers.values():
             t.stop()
+
+    def _save_reports(self):
+        if not self.conn:
+            QMessageBox.warning(self, "No Database", "No database connection.")
+            return
+        try:
+            from tools.report import generate_reports
+            paths = generate_reports(self.conn)
+            if not paths:
+                QMessageBox.information(self, "No Data",
+                    "No measurement data found in the current session.")
+                return
+            msg = "Reports saved:\n\n" + "\n".join(paths)
+            QMessageBox.information(self, "Reports Saved", msg)
+            for p in paths:
+                self.log(f"  [REPORT] Saved: {p}")
+        except Exception as e:
+            QMessageBox.warning(self, "Report Error", str(e))
+            self.log(f"  ⚠ [REPORT] Error: {e}")
 
     # ----------------------------------------------------------
     # HELPERS
