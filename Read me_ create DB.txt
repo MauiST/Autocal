@@ -1,0 +1,4 @@
+to create DB 
+run cmd in folder then 
+
+python create_db.py

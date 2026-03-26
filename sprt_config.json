@@ -1,0 +1,41 @@
+{
+    "_comment": "Hardcoded SPRT coefficients and standard resistor values.",
+    "_usage":   "Edit this file to override DB values. Coefficients verified from SPRTAnalyzerV5.",
+    "_note":    "To use DB values instead, remove or rename this file.",
+
+    "standard_resistors": {
+        "_comment": "Calibrated resistance values for bridge reference resistors.",
+        "_note":    "Set these to the exact calibrated values from the resistor certificates.",
+        "25":  24.999895,
+        "100": 100.00084
+    },
+
+    "5003": {
+        "_note":   "0°C bath reference -- verified working",
+        "roits":   25.673304498446,
+        "a_sub":  -2.8008754547614e-04,
+        "b_sub":  -6.91040202369516e-06,
+        "a_above":-2.96924668118342e-04
+    },
+    "5004": {
+        "_note":   "-195°C bath reference",
+        "roits":   25.73122,
+        "a_sub":  -2.245746e-04,
+        "b_sub":  -2.275693e-06,
+        "a_above":-2.482641e-04
+    },
+    "5088": {
+        "_note":   "-76°C bath reference",
+        "roits":   25.3913923289315,
+        "a_sub":  -1.6048040028668e-04,
+        "b_sub":  -1.0341744717991e-05,
+        "a_above":-1.51583715855111e-04
+    },
+    "4999": {
+        "_note":   "100°C bath reference",
+        "roits":   25.5939491065947,
+        "a_sub":  -1.83544024242177e-04,
+        "b_sub":   1.05759953587199e-05,
+        "a_above":-2.49000841615879e-04
+    }
+}
