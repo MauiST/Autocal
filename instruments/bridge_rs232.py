@@ -102,10 +102,10 @@ class RS232Bridge:
             float -- ratio value
             None  -- on failure
         """
-        if channel not in self.channel_cmds:
-            raise ValueError(f"Invalid channel {channel}")
-        time.sleep(self.channel_settle)
         try:
+            if channel not in self.channel_cmds:
+                return None
+            time.sleep(self.channel_settle)
             response = self._query_raw(self.channel_cmds[channel])
             return float(response)
         except Exception:

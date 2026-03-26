@@ -102,7 +102,12 @@ class MeasurementWorker(QThread):
                     break
                 self.log(f"    Batch {bn}  Slot {slot}")
                 self._cnc_connect_batch(bath_no, slot, bn)
-                self._measure_batch(bath_no, bn, slot, ref_name)
+                try:
+                    self._measure_batch(bath_no, bn, slot, ref_name)
+                except Exception as e:
+                    self.log(f"    ⚠ [WORKER] Unhandled error in batch {bn}: {e}")
+                    import traceback
+                    self.log(traceback.format_exc())
                 self._cnc_disconnect_batch(slot)
                 self.batch_done_signal.emit(bn)
 

@@ -63,12 +63,12 @@ class GPIBBridge:
 
         Returns:
             float -- ratio value
-            None  -- on failure
+            None  -- on failure or invalid channel
         """
-        if channel not in self.channel_cmds:
-            raise ValueError(f"Invalid channel {channel}")
-        time.sleep(self.channel_settle)
         try:
+            if channel not in self.channel_cmds:
+                return None
+            time.sleep(self.channel_settle)
             val = self._resource.query(self.channel_cmds[channel])
             return float(val)
         except Exception:
