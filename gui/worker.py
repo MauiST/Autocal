@@ -352,6 +352,12 @@ class MeasurementWorker(QThread):
 
                 # ── STATE: collecting readings (scans 1–5) ─────────
                 else:
+                    # If buffer is full but reference not ready -- just wait
+                    # Don't query bridge, don't log, don't add to buffer
+                    if chno > 0 and len(sensor_buffers[chno]) >= 5 and ref_temperature is None:
+                        self.log(f"      [{label(chno)}] waiting for reference...")
+                        continue
+
                     if self.bridge:
                         ratio = bridge_query_channel(self.bridge, chno + 1)
                         if ratio is None:
@@ -380,7 +386,7 @@ class MeasurementWorker(QThread):
                     # Check stage 1 once buffer has 5 readings
                     if len(sensor_buffers[chno]) == 5:
                         if chno > 0 and ref_temperature is None:
-                            self.log(f"      [{label(chno)}] waiting for reference...")
+                            # Will wait silently next scan (handled above)
                             continue
                         readings = list(sensor_buffers[chno])
                         passed1, spread = run_stability_check(readings)
