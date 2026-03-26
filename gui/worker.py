@@ -195,19 +195,39 @@ class MeasurementWorker(QThread):
         def label(chno):
             return f'REF {ref_name}' if chno == 0 else active_serials[chno - 1]
 
-        scan           = 1
-        sim_current    = {}
+        scan            = 1
+        sim_current     = {}
         # True once stage 1 passed -- next query is the 6th (stage 2) reading
-        stage1_passed  = [False] * total_channels
+        stage1_passed   = [False] * total_channels
         # Consecutive bridge query failures per channel -- auto-skip after 3
-        fail_count     = [0] * total_channels
-        MAX_FAILS      = 3
+        fail_count      = [0] * total_channels
+        MAX_FAILS       = 3
+        # Scan timeout -- auto-skip sensor if exceeded
+        MAX_SCANS       = config.get_int('max_scans',        30)
+        MAX_STAGE2_FAILS = config.get_int('max_stage2_fails', 5)
+        MAX_ITS90_FAILS  = config.get_int('max_its90_fails',  3)
+        scan_count      = [0] * total_channels   # scans per channel
+        stage2_fails    = [0] * total_channels   # stage 2 retry count
+        its90_fail_count = 0                     # ITS-90 consecutive failures
+        # Rolling reference buffer -- keeps updating T_ref every scan
+        ref_buffer      = []
 
         while not all(sensor_stable) and self._running:
             self.log(f"      Scan {scan}  --  Batch {batch_no}")
 
             for chno in range(total_channels):
                 if sensor_stable[chno]:
+                    continue
+
+                # ── SCAN TIMEOUT -- auto-skip if exceeded ──────────
+                scan_count[chno] += 1
+                if chno > 0 and scan_count[chno] > MAX_SCANS:
+                    self.log(
+                        f"      ✗ [{label(chno)}] timeout -- no stable reading"
+                        f" after {MAX_SCANS} scans -- sensor auto-skipped"
+                    )
+                    sensor_stable[chno] = True
+                    self.skip_signal.emit(label(chno))
                     continue
 
                 # ── SIMULATION helper ──────────────────────────────
@@ -246,7 +266,16 @@ class MeasurementWorker(QThread):
                     passed2, delta = run_stage2_check(readings, sixth)
                     self.stage_signal.emit(label(chno), 2, passed2)
                     if not passed2:
-                        stage1_passed[chno] = False       # failed -- re-collect
+                        stage2_fails[chno] += 1
+                        if stage2_fails[chno] >= MAX_STAGE2_FAILS:
+                            self.log(
+                                f"      ✗ [{label(chno)}] Stage 2 failed"
+                                f" {MAX_STAGE2_FAILS} times -- sensor auto-skipped"
+                            )
+                            sensor_stable[chno] = True
+                            self.skip_signal.emit(label(chno))
+                        else:
+                            stage1_passed[chno] = False   # re-collect
                         continue
 
                     # ── STABLE ────────────────────────────────────
@@ -254,11 +283,59 @@ class MeasurementWorker(QThread):
                     final_readings[chno] = sixth
 
                     if chno == 0:
-                        self._handle_reference_stable(
-                            sixth, ref_coefficients, r_standard_25,
-                            ref_name, bath_no
-                        )
-                        ref_temperature = self._last_ref_temperature
+                        # Rolling T_ref -- update every scan, never mark stable
+                        ref_buffer.append(sixth)
+                        if len(ref_buffer) > 5:
+                            ref_buffer.pop(0)
+                        ref_avg = sum(ref_buffer) / len(ref_buffer)
+                        try:
+                            t_ref, w, wr, dw = calculate_its90(
+                                ref_avg, ref_coefficients, r_standard_25
+                            )
+                            if ref_temperature is None:
+                                # First successful T_ref -- log full detail
+                                r_ref = ref_avg * r_standard_25
+                                self.log(
+                                    f"      ✓ REF [{ref_name}]  "
+                                    f"ratio: {ref_avg:.9f}  R={r_ref:.7f}Ω"
+                                )
+                                self.log(
+                                    f"      → ITS-90: W={w:.9f}  "
+                                    f"Wr={wr:.9f}  dW={dw:.10f}"
+                                )
+                                for warning in validate_ref_for_bath(
+                                    ref_name, bath_no, t_ref
+                                ):
+                                    self.log(f"      ⚠ {warning}")
+                                    self.warning_signal.emit(warning)
+                                if bath_no == 1:
+                                    self._bath1_1_temp = t_ref
+                            else:
+                                # Subsequent updates -- brief log only
+                                self.log(
+                                    f"      → T_ref updated: {t_ref:.5f}°C"
+                                    f"  (was {ref_temperature:.5f}°C)"
+                                )
+                            ref_temperature      = t_ref
+                            its90_fail_count     = 0
+                            sensor_stable[chno]  = False  # keep scanning ref
+                        except Exception as e:
+                            its90_fail_count += 1
+                            self.log(
+                                f"      ⚠ ITS-90 error ({its90_fail_count}/"
+                                f"{MAX_ITS90_FAILS}): {e}"
+                            )
+                            if its90_fail_count >= MAX_ITS90_FAILS:
+                                self.log(
+                                    f"      ✗ ITS-90 failed {MAX_ITS90_FAILS} times"
+                                    f" -- aborting batch"
+                                )
+                                conn.close()
+                                return
+                        # Don't mark ref as stable -- reset stage flags to keep scanning
+                        sensor_stable[chno]  = False
+                        stage1_passed[chno]  = False
+                        sensor_buffers[chno].clear()
                     else:
                         serial = active_serials[chno - 1]
                         self._handle_sensor_stable(

@@ -64,6 +64,7 @@ REF_SENSOR_ID = {
 STAGE1_THRESHOLD = 0.000020499
 STAGE2_THRESHOLD = 0.000008499
 
+
 # =============================================================
 # --- BATH VALIDATION
 # =============================================================
@@ -189,7 +190,10 @@ CONFIG_DEFAULTS = {
 
     'stage1_threshold': ('0.000020499', 'stability', 'Stage 1 stability threshold'),
     'stage2_threshold': ('0.000008499', 'stability', 'Stage 2 stability threshold'),
-
+    'max_scans':        ('30', 'stability', 'Max scans before sensor auto-skip'),
+    'max_stage2_fails': ('5',  'stability', 'Max Stage 2 retries before auto-skip'),
+    'max_its90_fails':  ('3',  'stability', 'Max ITS-90 failures before batch abort'),
+    
     'bath1_resistance_warn_mk':  ('20.0', 'warnings', 'Bath 1-2 vs 1-1 resistance drift warning mK'),
     'bath1_temperature_warn_mk': ('10.0', 'warnings', 'Bath 1-2 vs 1-1 temperature drift warning mK'),
 
@@ -435,3 +439,4 @@ def get_sprt_coefficients(sensor_id):
 def get_standard_resistor(nominal):
     """Get calibrated standard resistor value from runtime config."""
     return get_float(f'resistor_{int(float(nominal))}', float(nominal))
+
