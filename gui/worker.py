@@ -309,6 +309,7 @@ class MeasurementWorker(QThread):
                                     f"      → ITS-90: W={w:.9f}  "
                                     f"Wr={wr:.9f}  dW={dw:.10f}"
                                 )
+                                self.log(f"      → Bath temperature: {t_ref:.5f} °C")
                                 for warning in validate_ref_for_bath(
                                     ref_name, bath_no, t_ref
                                 ):
