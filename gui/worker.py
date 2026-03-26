@@ -41,13 +41,13 @@ class MeasurementWorker(QThread):
     bath_done_signal    = Signal(int)
     session_done_signal = Signal()
 
-    def __init__(self, session_config, wait_times, cnc1=None, cnc2=None,
-                 bridge=None, sim_config=None):
+    def __init__(self, session_config, wait_times, cnc=None,
+                 bridge=None, sim_config=None, cnc_disabled=False):
         super().__init__()
         self.session_config = session_config
         self.wait_times     = wait_times
-        self.cnc1           = cnc1        # Connector 1 -- reference SPRT
-        self.cnc2           = cnc2        # Connector 2 -- PT100 batch sensors
+        self.cnc            = cnc          # Single CNC (X=ref, Y=batch, Z=connect)
+        self.cnc_disabled   = cnc_disabled # True = skip all CNC moves (manual mode)
         self.bridge         = bridge
         self.sim_config     = sim_config or {
             'ref_ratio': 1.0, 'ref_variance': 1e-7,
@@ -101,7 +101,7 @@ class MeasurementWorker(QThread):
                 if not self._running:
                     break
                 self.log(f"    Batch {bn}  Slot {slot}")
-                self._cnc_connect_batch(slot, bn)
+                self._cnc_connect_batch(bath_no, slot, bn)
                 self._measure_batch(bath_no, bn, slot, ref_name)
                 self._cnc_disconnect_batch(slot)
                 self.batch_done_signal.emit(bn)
@@ -114,51 +114,47 @@ class MeasurementWorker(QThread):
         self.session_done_signal.emit()
 
     # ------------------------------------------------------------------
-    # CNC CONNECTOR CONTROL  (replaces PLC)
+    # CNC CONNECTOR CONTROL
     # ------------------------------------------------------------------
     def _cnc_connect_reference(self, ref_name, bath_no):
-        if self.cnc1:
+        """Move X to reference sensor position (Z stays up)."""
+        if self.cnc and not self.cnc_disabled:
             try:
-                from cnc.control import cnc_connect_slot
-                cnc_connect_slot(self.cnc1, slot=1)
-                self.log(f"    [CNC1] Reference {ref_name} connected")
+                from cnc.control import cnc_connect_reference
+                cnc_connect_reference(self.cnc, ref_name)
+                self.log(f"    [CNC] Reference {ref_name} positioned (X axis)")
             except Exception as e:
-                self.log(f"    ⚠ [CNC1] Connect error: {e}")
+                self.log(f"    ⚠ [CNC] Reference position error: {e}")
         else:
-            self.log(f"    [CNC1] Simulation -- reference {ref_name} connected")
+            self.log(f"    [CNC] {'DISABLED' if self.cnc_disabled else 'Simulation'} -- reference {ref_name} (manual)")
 
     def _cnc_disconnect_reference(self, ref_name, bath_no):
-        if self.cnc1:
-            try:
-                from cnc.control import cnc_disconnect
-                cnc_disconnect(self.cnc1)
-                self.log(f"    [CNC1] Reference {ref_name} disconnected")
-            except Exception as e:
-                self.log(f"    ⚠ [CNC1] Disconnect error: {e}")
-        else:
-            self.log(f"    [CNC1] Simulation -- reference {ref_name} disconnected")
+        """Reference done -- Z is already up after last batch disconnect."""
+        self.log(f"    [CNC] Reference {ref_name} done")
 
-    def _cnc_connect_batch(self, slot, batch_no):
-        if self.cnc2:
+    def _cnc_connect_batch(self, bath_no, slot, batch_no):
+        """Move Y to batch slot position then lower Z to connect."""
+        if self.cnc and not self.cnc_disabled:
             try:
-                from cnc.control import cnc_connect_slot
-                cnc_connect_slot(self.cnc2, slot=slot)
-                self.log(f"    [CNC2] Batch {batch_no} slot {slot} connected")
+                from cnc.control import cnc_connect_batch
+                cnc_connect_batch(self.cnc, bath_no, slot)
+                self.log(f"    [CNC] Batch {batch_no} slot {slot} connected (Y+Z)")
             except Exception as e:
-                self.log(f"    ⚠ [CNC2] Connect error: {e}")
+                self.log(f"    ⚠ [CNC] Batch connect error: {e}")
         else:
-            self.log(f"    [CNC2] Simulation -- batch {batch_no} slot {slot} connected")
+            self.log(f"    [CNC] {'DISABLED' if self.cnc_disabled else 'Simulation'} -- batch {batch_no} slot {slot} (manual)")
 
     def _cnc_disconnect_batch(self, slot):
-        if self.cnc2:
+        """Raise Z after batch measurement."""
+        if self.cnc and not self.cnc_disabled:
             try:
                 from cnc.control import cnc_disconnect
-                cnc_disconnect(self.cnc2)
-                self.log(f"    [CNC2] Slot {slot} disconnected")
+                cnc_disconnect(self.cnc)
+                self.log(f"    [CNC] Slot {slot} disconnected (Z raised)")
             except Exception as e:
-                self.log(f"    ⚠ [CNC2] Disconnect error: {e}")
+                self.log(f"    ⚠ [CNC] Disconnect error: {e}")
         else:
-            self.log(f"    [CNC2] Simulation -- slot {slot} disconnected")
+            self.log(f"    [CNC] {'DISABLED' if self.cnc_disabled else 'Simulation'} -- slot {slot} disconnected (manual)")
 
     # ------------------------------------------------------------------
     # BATCH MEASUREMENT

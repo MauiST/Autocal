@@ -1,22 +1,23 @@
 """
 cnc/control.py
 ==============
-CNC controller interface for TwoTrees TTC3018S machines via GRBL.
+CNC controller interface for a single TwoTrees TTC3018S (or compatible GRBL
+machine) used as an automated pogo-pin connector.
 
-CNC 1 -- Reference SPRT selector
-  X axis: moves between 4 reference sensor positions (one per bath)
-  Z axis: lowers/raises pogo pin connector to make contact
-
-CNC 2 -- Batch sensor selector
-  X axis: moves between 10 batch positions (2 slots x 5 baths)
-  Z axis: lowers/raises pogo pin connector to make contact
+Axes:
+  X axis -- selects which reference SPRT is under the connector
+             (4 positions, one per bath: 5003, 5004, 5088, 4999)
+  Y axis -- selects which batch-sensor slot is under the connector
+             (14 positions: 4 slots for Bath 1-1, 4 for Bath 1-2,
+              2 each for Baths 2/3/4)
+  Z axis -- lowers / raises the pogo-pin head to make / break contact
 
 Communication: USB serial, GRBL firmware, 115200 baud
 Protocol: send G-code lines, wait for 'ok' response per command,
           poll '?' status until 'Idle' before returning from moves.
 
 All positions are in absolute coordinates (G90).
-All moves use the configured feed rate.
+All moves use the configured feed rate from config.py.
 """
 
 import time
@@ -53,9 +54,9 @@ def cnc_connect(port, baud=115200):
     """
     try:
         cnc = serial.Serial(
-            port      = port,
-            baudrate  = baud,
-            timeout   = 2,
+            port          = port,
+            baudrate      = baud,
+            timeout       = 2,
             write_timeout = 2,
         )
         time.sleep(2)          # Wait for GRBL to initialise
@@ -96,76 +97,69 @@ def cnc_close(cnc):
 
 
 # ------------------------------------------------------------------
-# REFERENCE SPRT POSITIONING  (CNC 1)
+# REFERENCE SPRT POSITIONING  (X axis)
 # ------------------------------------------------------------------
 
-def cnc1_move_to_reference(cnc, sensor_id):
+def cnc_move_reference(cnc, sensor_id):
     """
-    Move CNC 1 X axis to the position for the given reference sensor.
-    Does NOT connect (lower Z) -- call cnc_z_connect() separately.
-
-    Args:
-        cnc       : serial.Serial -- CNC 1 connection
-        sensor_id : str           -- '5003', '5004', '5088' or '4999'
-    """
-    import config
-    x_pos = config.CNC1_X_POSITIONS.get(sensor_id)
-    if x_pos is None:
-        raise ValueError(
-            f"No X position configured for reference sensor {sensor_id}"
-        )
-    feed = config.CNC1_FEED_RATE
-    _send_command(cnc, f'G90 G0 X{x_pos:.3f} F{feed}')
-    _wait_idle(cnc)
-
-
-def cnc1_connect(cnc, sensor_id):
-    """
-    Move CNC 1 to reference sensor position and lower Z to make contact.
+    Move X axis to the position for the given reference sensor.
+    Does NOT connect (lower Z) -- call cnc_connect_batch() to lower Z.
 
     Args:
         cnc       : serial.Serial
         sensor_id : str -- '5003', '5004', '5088' or '4999'
     """
     import config
-    cnc1_move_to_reference(cnc, sensor_id)
-    _z_connect(cnc, config.CNC1_Z_CONNECT, config.CNC1_FEED_RATE)
+    x_pos = config.CNC_X_POSITIONS.get(sensor_id)
+    if x_pos is None:
+        raise ValueError(
+            f"No X position configured for reference sensor {sensor_id}"
+        )
+    _send_command(cnc, f'G90 G0 X{x_pos:.3f} F{config.CNC_FEED_RATE}')
+    _wait_idle(cnc)
 
 
-def cnc1_disconnect(cnc):
-    """Raise CNC 1 Z to clear position (retract reference pogo pins)."""
-    import config
-    _z_clear(cnc, config.CNC1_Z_CLEAR, config.CNC1_FEED_RATE)
-
-
-# ------------------------------------------------------------------
-# BATCH SENSOR POSITIONING  (CNC 2)
-# ------------------------------------------------------------------
-
-def cnc2_move_to_batch(cnc, bath_no, slot):
+def cnc_connect_reference(cnc, sensor_id):
     """
-    Move CNC 2 X axis to the position for the given bath and slot.
-    Does NOT connect (lower Z) -- call cnc_z_connect() separately.
+    Move X to the reference sensor position.
+    Z is NOT lowered here -- call cnc_connect_batch() to lower Z
+    after positioning both X and Y.
+
+    Args:
+        cnc       : serial.Serial
+        sensor_id : str -- '5003', '5004', '5088' or '4999'
+    """
+    cnc_move_reference(cnc, sensor_id)
+
+
+# ------------------------------------------------------------------
+# BATCH SENSOR POSITIONING  (Y axis)
+# ------------------------------------------------------------------
+
+def cnc_move_batch(cnc, bath_no, slot):
+    """
+    Move Y axis to the position for the given bath and slot.
+    Does NOT connect (lower Z).
 
     Args:
         cnc     : serial.Serial
         bath_no : int -- bath number (1=Bath1-1, 2, 3, 4, 5=Bath1-2)
-        slot    : int -- slot number (1 or 2)
+        slot    : int -- slot number (1 or 2, up to 4 for Bath 1)
     """
     import config
-    x_pos = config.CNC2_X_POSITIONS.get((bath_no, slot))
-    if x_pos is None:
+    y_pos = config.CNC_Y_POSITIONS.get((bath_no, slot))
+    if y_pos is None:
         raise ValueError(
-            f"No X position configured for bath {bath_no} slot {slot}"
+            f"No Y position configured for bath {bath_no} slot {slot}"
         )
-    feed = config.CNC2_FEED_RATE
-    _send_command(cnc, f'G90 G0 X{x_pos:.3f} F{feed}')
+    _send_command(cnc, f'G90 G0 Y{y_pos:.3f} F{config.CNC_FEED_RATE}')
     _wait_idle(cnc)
 
 
-def cnc2_connect(cnc, bath_no, slot):
+def cnc_connect_batch(cnc, bath_no, slot):
     """
-    Move CNC 2 to batch position and lower Z to make contact.
+    Move Y to the batch sensor position and lower Z to make contact.
+    Call cnc_connect_reference() first to position X.
 
     Args:
         cnc     : serial.Serial
@@ -173,14 +167,14 @@ def cnc2_connect(cnc, bath_no, slot):
         slot    : int
     """
     import config
-    cnc2_move_to_batch(cnc, bath_no, slot)
-    _z_connect(cnc, config.CNC2_Z_CONNECT, config.CNC2_FEED_RATE)
+    cnc_move_batch(cnc, bath_no, slot)
+    _z_connect(cnc, config.CNC_Z_CONNECT, config.CNC_FEED_RATE)
 
 
-def cnc2_disconnect(cnc):
-    """Raise CNC 2 Z to clear position (retract batch pogo pins)."""
+def cnc_disconnect(cnc):
+    """Raise Z to clear position (retract pogo pins)."""
     import config
-    _z_clear(cnc, config.CNC2_Z_CLEAR, config.CNC2_FEED_RATE)
+    _z_clear(cnc, config.CNC_Z_CLEAR, config.CNC_FEED_RATE)
 
 
 # ------------------------------------------------------------------
@@ -193,13 +187,15 @@ def cnc_jog(cnc, direction, feed_rate, step=JOG_STEP):
 
     Args:
         cnc        : serial.Serial
-        direction  : str -- 'X+', 'X-', 'Z+', 'Z-'
+        direction  : str -- 'X+', 'X-', 'Y+', 'Y-', 'Z+', 'Z-'
         feed_rate  : int -- mm/min
         step       : float -- mm per click (default 1.0)
     """
     axis_map = {
         'X+': f'G91 X{step} F{feed_rate}',
         'X-': f'G91 X-{step} F{feed_rate}',
+        'Y+': f'G91 Y{step} F{feed_rate}',
+        'Y-': f'G91 Y-{step} F{feed_rate}',
         'Z+': f'G91 Z{step} F{feed_rate}',
         'Z-': f'G91 Z-{step} F{feed_rate}',
         'H':  '$H',   # GRBL homing cycle

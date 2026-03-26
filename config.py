@@ -104,30 +104,30 @@ BATH1_RESISTANCE_WARN_MK  = 20.0   # mK sensor resistance drift
 BATH1_TEMPERATURE_WARN_MK = 10.0   # mK bath temperature drift
 
 # =============================================================
-# --- CNC MACHINE DEFAULTS
+# --- CNC MACHINE DEFAULTS  (single CNC, 3 axes)
+# X axis -- reference SPRT selector (4 positions)
+# Y axis -- batch sensor slot selector (14 positions)
+# Z axis -- pogo pin connect/disconnect
 # =============================================================
-CNC1_PORT       = 'COM3'
-CNC2_PORT       = 'COM4'
+CNC_PORT        = 'COM3'
 CNC_BAUD        = 115200
-CNC1_FEED_RATE  = 500
-CNC2_FEED_RATE  = 500
-CNC1_Z_CONNECT  = -5.0
-CNC1_Z_CLEAR    = 0.0
-CNC2_Z_CONNECT  = -5.0
-CNC2_Z_CLEAR    = 0.0
+CNC_FEED_RATE   = 500
+CNC_Z_CONNECT   = -5.0
+CNC_Z_CLEAR     = 0.0
+CNC_DISABLED    = False   # set True to skip all CNC moves (manual mode)
 
-# CNC 1 -- X positions per reference sensor
-CNC1_X_POSITIONS = {
+# X positions per reference sensor
+CNC_X_POSITIONS = {
     '5003': 0.0,
     '5004': 30.0,
     '5088': 60.0,
     '4999': 90.0,
 }
 
-# CNC 2 -- X positions per bath and slot
+# Y positions per bath and slot
 # Key: (bath_no, slot) where bath_no matches BATH_COLUMN keys
 # Bath 1-1 (bath_no=1) and Bath 1-2 (bath_no=5) have 4 slots each
-CNC2_X_POSITIONS = {
+CNC_Y_POSITIONS = {
     (1, 1): 0.0,    # Bath 1-1 Slot 1
     (1, 2): 30.0,   # Bath 1-1 Slot 2
     (1, 3): 60.0,   # Bath 1-1 Slot 3
@@ -193,43 +193,39 @@ CONFIG_DEFAULTS = {
     'bath1_resistance_warn_mk':  ('20.0', 'warnings', 'Bath 1-2 vs 1-1 resistance drift warning mK'),
     'bath1_temperature_warn_mk': ('10.0', 'warnings', 'Bath 1-2 vs 1-1 temperature drift warning mK'),
 
-    # CNC ports and motion settings
-    'cnc1_port':       ('COM3',   'cnc', 'CNC 1 COM port -- Reference SPRT selector'),
-    'cnc2_port':       ('COM4',   'cnc', 'CNC 2 COM port -- Batch sensor selector'),
-    'cnc_baud':        ('115200', 'cnc', 'CNC baud rate'),
-    'cnc1_feed_rate':  ('500',    'cnc', 'CNC 1 feed rate mm/min'),
-    'cnc2_feed_rate':  ('500',    'cnc', 'CNC 2 feed rate mm/min'),
-    'cnc1_z_connect':  ('-5.0',   'cnc', 'CNC 1 Z depth for reference pogo pin contact mm'),
-    'cnc1_z_clear':    ('0.0',    'cnc', 'CNC 1 Z clear/home position mm'),
-    'cnc2_z_connect':  ('-5.0',   'cnc', 'CNC 2 Z depth for batch pogo pin contact mm'),
-    'cnc2_z_clear':    ('0.0',    'cnc', 'CNC 2 Z clear/home position mm'),
+    # CNC motion settings (single CNC, 3 axes)
+    'cnc_port':       ('COM3',   'cnc', 'CNC COM port'),
+    'cnc_baud':       ('115200', 'cnc', 'CNC baud rate'),
+    'cnc_feed_rate':  ('500',    'cnc', 'CNC feed rate mm/min'),
+    'cnc_z_connect':  ('-5.0',   'cnc', 'Z depth for pogo pin contact mm'),
+    'cnc_z_clear':    ('0.0',    'cnc', 'Z clear/home position mm'),
 
-    # CNC 1 -- Reference SPRT X positions (4 positions, one per bath)
-    'cnc1_x_ref_5003': ('0.0',   'cnc', 'CNC1 X position for ref 5003 (Bath 1)  mm'),
-    'cnc1_x_ref_5004': ('30.0',  'cnc', 'CNC1 X position for ref 5004 (Bath 2)  mm'),
-    'cnc1_x_ref_5088': ('60.0',  'cnc', 'CNC1 X position for ref 5088 (Bath 3)  mm'),
-    'cnc1_x_ref_4999': ('90.0',  'cnc', 'CNC1 X position for ref 4999 (Bath 4)  mm'),
+    # X axis -- Reference SPRT positions (4 positions, one per bath)
+    'cnc_x_ref_5003': ('0.0',   'cnc', 'X position for ref 5003 (Bath 1)  mm'),
+    'cnc_x_ref_5004': ('30.0',  'cnc', 'X position for ref 5004 (Bath 2)  mm'),
+    'cnc_x_ref_5088': ('60.0',  'cnc', 'X position for ref 5088 (Bath 3)  mm'),
+    'cnc_x_ref_4999': ('90.0',  'cnc', 'X position for ref 4999 (Bath 4)  mm'),
 
-    # CNC 2 -- Batch sensor X positions (10 positions)
+    # Y axis -- Batch sensor positions (14 positions)
     # Bath 1-1 (first 0C measurement) -- 4 slots
-    'cnc2_x_bath1_1_slot_1': ('0.0',   'cnc', 'CNC2 X Bath 1-1 Slot 1 mm'),
-    'cnc2_x_bath1_1_slot_2': ('30.0',  'cnc', 'CNC2 X Bath 1-1 Slot 2 mm'),
-    'cnc2_x_bath1_1_slot_3': ('60.0',  'cnc', 'CNC2 X Bath 1-1 Slot 3 mm'),
-    'cnc2_x_bath1_1_slot_4': ('90.0',  'cnc', 'CNC2 X Bath 1-1 Slot 4 mm'),
+    'cnc_y_bath1_1_slot_1': ('0.0',   'cnc', 'Y Bath 1-1 Slot 1 mm'),
+    'cnc_y_bath1_1_slot_2': ('30.0',  'cnc', 'Y Bath 1-1 Slot 2 mm'),
+    'cnc_y_bath1_1_slot_3': ('60.0',  'cnc', 'Y Bath 1-1 Slot 3 mm'),
+    'cnc_y_bath1_1_slot_4': ('90.0',  'cnc', 'Y Bath 1-1 Slot 4 mm'),
     # Bath 1-2 (second 0C measurement) -- 4 slots
-    'cnc2_x_bath1_2_slot_1': ('120.0', 'cnc', 'CNC2 X Bath 1-2 Slot 1 mm'),
-    'cnc2_x_bath1_2_slot_2': ('150.0', 'cnc', 'CNC2 X Bath 1-2 Slot 2 mm'),
-    'cnc2_x_bath1_2_slot_3': ('180.0', 'cnc', 'CNC2 X Bath 1-2 Slot 3 mm'),
-    'cnc2_x_bath1_2_slot_4': ('210.0', 'cnc', 'CNC2 X Bath 1-2 Slot 4 mm'),
+    'cnc_y_bath1_2_slot_1': ('120.0', 'cnc', 'Y Bath 1-2 Slot 1 mm'),
+    'cnc_y_bath1_2_slot_2': ('150.0', 'cnc', 'Y Bath 1-2 Slot 2 mm'),
+    'cnc_y_bath1_2_slot_3': ('180.0', 'cnc', 'Y Bath 1-2 Slot 3 mm'),
+    'cnc_y_bath1_2_slot_4': ('210.0', 'cnc', 'Y Bath 1-2 Slot 4 mm'),
     # Bath 2
-    'cnc2_x_bath2_slot_1':   ('240.0', 'cnc', 'CNC2 X Bath 2 Slot 1 mm'),
-    'cnc2_x_bath2_slot_2':   ('270.0', 'cnc', 'CNC2 X Bath 2 Slot 2 mm'),
+    'cnc_y_bath2_slot_1':   ('240.0', 'cnc', 'Y Bath 2 Slot 1 mm'),
+    'cnc_y_bath2_slot_2':   ('270.0', 'cnc', 'Y Bath 2 Slot 2 mm'),
     # Bath 3
-    'cnc2_x_bath3_slot_1':   ('300.0', 'cnc', 'CNC2 X Bath 3 Slot 1 mm'),  # placeholder -- adjust per physical layout
-    'cnc2_x_bath3_slot_2':   ('330.0', 'cnc', 'CNC2 X Bath 3 Slot 2 mm'),
+    'cnc_y_bath3_slot_1':   ('300.0', 'cnc', 'Y Bath 3 Slot 1 mm'),
+    'cnc_y_bath3_slot_2':   ('330.0', 'cnc', 'Y Bath 3 Slot 2 mm'),
     # Bath 4
-    'cnc2_x_bath4_slot_1':   ('360.0', 'cnc', 'CNC2 X Bath 4 Slot 1 mm'),
-    'cnc2_x_bath4_slot_2':   ('390.0', 'cnc', 'CNC2 X Bath 4 Slot 2 mm'),
+    'cnc_y_bath4_slot_1':   ('360.0', 'cnc', 'Y Bath 4 Slot 1 mm'),
+    'cnc_y_bath4_slot_2':   ('390.0', 'cnc', 'Y Bath 4 Slot 2 mm'),
 
     'sprt_5003_roits':   ('25.673304498446',      'sprt', 'Sensor 5003 Roits'),
     'sprt_5003_a_sub':   ('-2.8008754547614E-04',  'sprt', 'Sensor 5003 a<0'),
@@ -359,10 +355,9 @@ def _apply_runtime():
     global BRIDGE_COMM, BRIDGE_GPIB_ADDR, BRIDGE_RS232_PORT
     global BRIDGE_RS232_BAUD, BRIDGE_RS232_BYTESIZE, BRIDGE_RS232_PARITY, BRIDGE_RS232_STOPBITS
     global BRIDGE_TIMEOUT, BRIDGE_SETTLE_TIME, BRIDGE_CHANNEL_SETTLE
-    global CNC1_PORT, CNC2_PORT, CNC_BAUD
-    global CNC1_FEED_RATE, CNC2_FEED_RATE
-    global CNC1_Z_CONNECT, CNC1_Z_CLEAR, CNC2_Z_CONNECT, CNC2_Z_CLEAR
-    global CNC1_X_POSITIONS, CNC2_X_POSITIONS
+    global CNC_PORT, CNC_BAUD, CNC_FEED_RATE
+    global CNC_Z_CONNECT, CNC_Z_CLEAR
+    global CNC_X_POSITIONS, CNC_Y_POSITIONS
 
     BATH_WAIT_DEFAULT = {
         1: get_int('bath_wait_1', 1800),
@@ -394,38 +389,34 @@ def _apply_runtime():
     BRIDGE_SETTLE_TIME    = get_int('bridge_settle_time', 3)
     BRIDGE_CHANNEL_SETTLE = get_float('bridge_channel_settle', 0.5)
 
-    CNC1_PORT      = get('cnc1_port', 'COM3')
-    CNC2_PORT      = get('cnc2_port', 'COM4')
-    CNC_BAUD       = get_int('cnc_baud', 115200)
-    CNC1_FEED_RATE = get_int('cnc1_feed_rate', 500)
-    CNC2_FEED_RATE = get_int('cnc2_feed_rate', 500)
-    CNC1_Z_CONNECT = get_float('cnc1_z_connect', -5.0)
-    CNC1_Z_CLEAR   = get_float('cnc1_z_clear',   0.0)
-    CNC2_Z_CONNECT = get_float('cnc2_z_connect', -5.0)
-    CNC2_Z_CLEAR   = get_float('cnc2_z_clear',   0.0)
+    CNC_PORT      = get('cnc_port', 'COM3')
+    CNC_BAUD      = get_int('cnc_baud', 115200)
+    CNC_FEED_RATE = get_int('cnc_feed_rate', 500)
+    CNC_Z_CONNECT = get_float('cnc_z_connect', -5.0)
+    CNC_Z_CLEAR   = get_float('cnc_z_clear',    0.0)
 
-    CNC1_X_POSITIONS = {
-        '5003': get_float('cnc1_x_ref_5003',  0.0),
-        '5004': get_float('cnc1_x_ref_5004', 30.0),
-        '5088': get_float('cnc1_x_ref_5088', 60.0),
-        '4999': get_float('cnc1_x_ref_4999', 90.0),
+    CNC_X_POSITIONS = {
+        '5003': get_float('cnc_x_ref_5003',  0.0),
+        '5004': get_float('cnc_x_ref_5004', 30.0),
+        '5088': get_float('cnc_x_ref_5088', 60.0),
+        '4999': get_float('cnc_x_ref_4999', 90.0),
     }
 
-    CNC2_X_POSITIONS = {
-        (1, 1): get_float('cnc2_x_bath1_1_slot_1',   0.0),
-        (1, 2): get_float('cnc2_x_bath1_1_slot_2',  30.0),
-        (1, 3): get_float('cnc2_x_bath1_1_slot_3',  60.0),
-        (1, 4): get_float('cnc2_x_bath1_1_slot_4',  90.0),
-        (5, 1): get_float('cnc2_x_bath1_2_slot_1', 120.0),
-        (5, 2): get_float('cnc2_x_bath1_2_slot_2', 150.0),
-        (5, 3): get_float('cnc2_x_bath1_2_slot_3', 180.0),
-        (5, 4): get_float('cnc2_x_bath1_2_slot_4', 210.0),
-        (2, 1): get_float('cnc2_x_bath2_slot_1',   240.0),
-        (2, 2): get_float('cnc2_x_bath2_slot_2',   270.0),
-        (3, 1): get_float('cnc2_x_bath3_slot_1',   300.0),
-        (3, 2): get_float('cnc2_x_bath3_slot_2',   330.0),
-        (4, 1): get_float('cnc2_x_bath4_slot_1',   360.0),
-        (4, 2): get_float('cnc2_x_bath4_slot_2',   390.0),
+    CNC_Y_POSITIONS = {
+        (1, 1): get_float('cnc_y_bath1_1_slot_1',   0.0),
+        (1, 2): get_float('cnc_y_bath1_1_slot_2',  30.0),
+        (1, 3): get_float('cnc_y_bath1_1_slot_3',  60.0),
+        (1, 4): get_float('cnc_y_bath1_1_slot_4',  90.0),
+        (5, 1): get_float('cnc_y_bath1_2_slot_1', 120.0),
+        (5, 2): get_float('cnc_y_bath1_2_slot_2', 150.0),
+        (5, 3): get_float('cnc_y_bath1_2_slot_3', 180.0),
+        (5, 4): get_float('cnc_y_bath1_2_slot_4', 210.0),
+        (2, 1): get_float('cnc_y_bath2_slot_1',   240.0),
+        (2, 2): get_float('cnc_y_bath2_slot_2',   270.0),
+        (3, 1): get_float('cnc_y_bath3_slot_1',   300.0),
+        (3, 2): get_float('cnc_y_bath3_slot_2',   330.0),
+        (4, 1): get_float('cnc_y_bath4_slot_1',   360.0),
+        (4, 2): get_float('cnc_y_bath4_slot_2',   390.0),
     }
 
 

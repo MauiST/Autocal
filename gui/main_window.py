@@ -229,8 +229,8 @@ class MainWindow(QMainWindow):
         self.available_batches = fetch_available_batches(self.conn) if self.conn else []
         self.certificates      = fetch_certificates(self.conn) if self.conn else []
         self.bridge            = None
-        self.cnc1              = None
-        self.cnc2              = None
+        self.cnc               = None
+        self.cnc_disabled      = False
         self.sim_dialog        = None
         self.qtimers           = {}
         self.elapsed           = {}
@@ -350,23 +350,19 @@ class MainWindow(QMainWindow):
 
         self.bridge_dot = QLabel("●")
         self.bridge_lbl = QLabel("BRIDGE")
-        self.cnc1_dot   = QLabel("●")
-        self.cnc1_lbl   = QLabel("CNC 1")
-        self.cnc2_dot   = QLabel("●")
-        self.cnc2_lbl   = QLabel("CNC 2")
+        self.cnc_dot    = QLabel("●")
+        self.cnc_lbl    = QLabel("CNC")
 
-        for dot in [self.bridge_dot, self.cnc1_dot, self.cnc2_dot]:
+        for dot in [self.bridge_dot, self.cnc_dot]:
             dot.setStyleSheet("color: #c0614a; font-size: 16px;")
             dot.setFixedWidth(20)
-        for lbl in [self.bridge_lbl, self.cnc1_lbl, self.cnc2_lbl]:
+        for lbl in [self.bridge_lbl, self.cnc_lbl]:
             lbl.setStyleSheet("color: #c0614a; font-size: 11px; font-weight: bold;")
 
         status_grid.addWidget(self.bridge_dot, 0, 0)
         status_grid.addWidget(self.bridge_lbl, 0, 1)
-        status_grid.addWidget(self.cnc1_dot,   1, 0)
-        status_grid.addWidget(self.cnc1_lbl,   1, 1)
-        status_grid.addWidget(self.cnc2_dot,   2, 0)
-        status_grid.addWidget(self.cnc2_lbl,   2, 1)
+        status_grid.addWidget(self.cnc_dot,    1, 0)
+        status_grid.addWidget(self.cnc_lbl,    1, 1)
         side_v.addLayout(status_grid)
 
         # Log + sim buttons
@@ -642,6 +638,28 @@ class MainWindow(QMainWindow):
         )
         outer.addWidget(title)
 
+        # ── DISABLE CNC TOGGLE ────────────────────────────────
+        self._cnc_disable_btn = QPushButton("⚠  CNC DISABLED  —  Manual Mode")
+        self._cnc_disable_btn.setCheckable(True)
+        self._cnc_disable_btn.setChecked(False)
+        self._cnc_disable_btn.setFixedHeight(36)
+        self._cnc_disable_btn.setStyleSheet(
+            "QPushButton{"
+            "  border: 2px solid #7a8290; border-radius: 8px;"
+            "  color: #7a8290; font-weight: bold; font-size: 12px;"
+            "  background-color: transparent;"
+            "}"
+            "QPushButton:checked{"
+            "  border: 2px solid #c0614a; border-radius: 8px;"
+            "  color: white; font-weight: bold; font-size: 12px;"
+            "  background-color: #c0614a;"
+            "}"
+            "QPushButton:hover{ background-color: #e8e0d8; }"
+            "QPushButton:checked:hover{ background-color: #a04030; }"
+        )
+        self._cnc_disable_btn.toggled.connect(self._on_cnc_disable_toggled)
+        outer.addWidget(self._cnc_disable_btn)
+
         # Scroll area
         scroll   = QScrollArea()
         scroll.setWidgetResizable(True)
@@ -655,186 +673,119 @@ class MainWindow(QMainWindow):
         cnc_h = QHBoxLayout()
         cnc_h.setSpacing(14)
 
-        # ── CONNECTOR 1 -- Reference SPRT ─────────────────────
-        grp1 = QGroupBox("Connector 1  —  Reference SPRT")
-        gv1  = QVBoxLayout(grp1)
-        gv1.setSpacing(8)
+        # ── CNC CONNECTION ────────────────────────────────────
+        grp_conn = QGroupBox("CNC Connection")
+        gv_conn  = QVBoxLayout(grp_conn)
+        gv_conn.setSpacing(8)
 
-        # Connection row
-        port_h1 = QHBoxLayout()
-        port_h1.addWidget(QLabel("Port:"))
-        self.cnc1_port_entry = QLineEdit(config.get('cnc1_port', 'COM3'))
-        self.cnc1_port_entry.setFixedWidth(75)
-        conn1_btn    = QPushButton("Connect")
-        conn1_btn.setFixedWidth(85)
-        disconn1_btn = QPushButton("Disconnect")
-        disconn1_btn.setFixedWidth(95)
-        conn1_btn.clicked.connect(self._connect_cnc1)
-        disconn1_btn.clicked.connect(self._disconnect_cnc1)
-        port_h1.addWidget(self.cnc1_port_entry)
-        port_h1.addWidget(conn1_btn)
-        port_h1.addWidget(disconn1_btn)
-        port_h1.addStretch()
-        gv1.addLayout(port_h1)
+        port_h = QHBoxLayout()
+        port_h.addWidget(QLabel("Port:"))
+        self.cnc_port_entry = QLineEdit(config.get('cnc_port', 'COM3'))
+        self.cnc_port_entry.setFixedWidth(75)
+        conn_btn    = QPushButton("Connect")
+        conn_btn.setFixedWidth(85)
+        disconn_btn = QPushButton("Disconnect")
+        disconn_btn.setFixedWidth(95)
+        conn_btn.clicked.connect(self._connect_cnc)
+        disconn_btn.clicked.connect(self._disconnect_cnc)
+        port_h.addWidget(self.cnc_port_entry)
+        port_h.addWidget(conn_btn)
+        port_h.addWidget(disconn_btn)
+        port_h.addStretch()
+        gv_conn.addLayout(port_h)
 
-        self.cnc1_status_lbl = QLabel("● NOT CONNECTED")
-        self.cnc1_status_lbl.setStyleSheet("color: #c0614a; font-weight: bold; font-size: 11px;")
-        gv1.addWidget(self.cnc1_status_lbl)
+        self.cnc_status_lbl = QLabel("● NOT CONNECTED")
+        self.cnc_status_lbl.setStyleSheet("color: #c0614a; font-weight: bold; font-size: 11px;")
+        gv_conn.addWidget(self.cnc_status_lbl)
 
         # Divider
         d1 = QFrame(); d1.setFrameShape(QFrame.HLine)
         d1.setStyleSheet("color: #c2c8d0;")
-        gv1.addWidget(d1)
+        gv_conn.addWidget(d1)
 
-        # Manual jog
-        jog_lbl1 = QLabel("MANUAL JOG")
-        jog_lbl1.setStyleSheet("color: #7a8290; font-size: 9px; letter-spacing: 2px;")
-        gv1.addWidget(jog_lbl1)
-        step_h1 = QHBoxLayout()
-        step_h1.addWidget(QLabel("Step:"))
-        self._cnc1_step = QComboBox()
-        self._cnc1_step.addItems(["0.1 mm", "0.5 mm", "1 mm", "5 mm", "10 mm", "50 mm", "100 mm"])
-        self._cnc1_step.setCurrentText("1 mm")
-        self._cnc1_step.setFixedWidth(90)
-        step_h1.addWidget(self._cnc1_step)
-        step_h1.addStretch()
-        gv1.addLayout(step_h1)
-        jog_h1 = QHBoxLayout()
-        jog_h1.setSpacing(5)
-        for lbl, cmd in [("X−","X-"),("X+","X+"),("Z−","Z-"),("Z+","Z+"),("⌂ Home","H")]:
+        # Manual jog -- X, Y, Z axes
+        jog_lbl = QLabel("MANUAL JOG")
+        jog_lbl.setStyleSheet("color: #7a8290; font-size: 9px; letter-spacing: 2px;")
+        gv_conn.addWidget(jog_lbl)
+        step_h = QHBoxLayout()
+        step_h.addWidget(QLabel("Step:"))
+        self._cnc_step = QComboBox()
+        self._cnc_step.addItems(["0.1 mm", "0.5 mm", "1 mm", "5 mm", "10 mm", "50 mm", "100 mm"])
+        self._cnc_step.setCurrentText("1 mm")
+        self._cnc_step.setFixedWidth(90)
+        step_h.addWidget(self._cnc_step)
+        step_h.addStretch()
+        gv_conn.addLayout(step_h)
+
+        jog_h = QHBoxLayout()
+        jog_h.setSpacing(5)
+        for lbl, cmd in [("X−","X-"),("X+","X+"),("Y−","Y-"),("Y+","Y+"),
+                         ("Z−","Z-"),("Z+","Z+"),("⌂ Home","H")]:
             b = QPushButton(lbl)
             b.setFixedHeight(32)
             b.setFixedWidth(95 if lbl == "⌂ Home" else 52)
-            b.clicked.connect(lambda checked, c=cmd: self._cnc_jog(1, c, float(self._cnc1_step.currentText().split()[0])))
-            jog_h1.addWidget(b)
-        jog_h1.addStretch()
-        gv1.addLayout(jog_h1)
+            b.clicked.connect(
+                lambda checked, c=cmd: self._cnc_jog(
+                    c, float(self._cnc_step.currentText().split()[0])
+                )
+            )
+            jog_h.addWidget(b)
+        jog_h.addStretch()
+        gv_conn.addLayout(jog_h)
 
         # Pogo pins
-        pogo_h1 = QHBoxLayout()
-        cp1 = QPushButton("▼  Connect Pins")
-        cp1.setFixedHeight(32)
-        cp1.setStyleSheet("QPushButton{border:1.5px solid #5a9e6f;color:#5a9e6f;border-radius:8px;}"
-                          "QPushButton:hover{background-color:#5a9e6f;color:white;}")
-        rp1 = QPushButton("▲  Retract Pins")
-        rp1.setFixedHeight(32)
-        rp1.setStyleSheet("QPushButton{border:1.5px solid #c0614a;color:#c0614a;border-radius:8px;}"
-                          "QPushButton:hover{background-color:#c0614a;color:white;}")
-        cp1.clicked.connect(lambda: self._cnc_pogo_connect(1))
-        rp1.clicked.connect(lambda: self._cnc_pogo_disconnect(1))
-        pogo_h1.addWidget(cp1)
-        pogo_h1.addWidget(rp1)
-        pogo_h1.addStretch()
-        gv1.addLayout(pogo_h1)
+        pogo_h = QHBoxLayout()
+        cp = QPushButton("▼  Connect Pins")
+        cp.setFixedHeight(32)
+        cp.setStyleSheet("QPushButton{border:1.5px solid #5a9e6f;color:#5a9e6f;border-radius:8px;}"
+                         "QPushButton:hover{background-color:#5a9e6f;color:white;}")
+        rp = QPushButton("▲  Retract Pins")
+        rp.setFixedHeight(32)
+        rp.setStyleSheet("QPushButton{border:1.5px solid #c0614a;color:#c0614a;border-radius:8px;}"
+                         "QPushButton:hover{background-color:#c0614a;color:white;}")
+        cp.clicked.connect(self._cnc_pogo_connect)
+        rp.clicked.connect(self._cnc_pogo_disconnect)
+        pogo_h.addWidget(cp)
+        pogo_h.addWidget(rp)
+        pogo_h.addStretch()
+        gv_conn.addLayout(pogo_h)
 
-        # Divider
-        d2 = QFrame(); d2.setFrameShape(QFrame.HLine)
-        d2.setStyleSheet("color: #c2c8d0;")
-        gv1.addWidget(d2)
+        gv_conn.addStretch()
+        cnc_h.addWidget(grp_conn)
 
-        # Reference position buttons -- move to stored X position
-        pos_lbl1 = QLabel("MOVE TO POSITION")
-        pos_lbl1.setStyleSheet("color: #7a8290; font-size: 9px; letter-spacing: 2px;")
-        gv1.addWidget(pos_lbl1)
+        # ── X AXIS -- Reference SPRT positions ────────────────
+        grp_x = QGroupBox("X Axis  —  Reference SPRT Positions")
+        gv_x  = QVBoxLayout(grp_x)
+        gv_x.setSpacing(6)
 
-        ref_positions = [
-            ('5003', 'Bath 1  (Ref 5003)', '5003'),
-            ('5004', 'Bath 2  (Ref 5004)', '5004'),
-            ('5088', 'Bath 3  (Ref 5088)', '5088'),
-            ('4999', 'Bath 4  (Ref 4999)', '4999'),
-        ]
-        for sensor_id, label, sid in ref_positions:
+        pos_lbl_x = QLabel("MOVE X TO POSITION")
+        pos_lbl_x.setStyleSheet("color: #7a8290; font-size: 9px; letter-spacing: 2px;")
+        gv_x.addWidget(pos_lbl_x)
+
+        for sensor_id, label in [
+            ('5003', 'Bath 1  (Ref 5003)'),
+            ('5004', 'Bath 2  (Ref 5004)'),
+            ('5088', 'Bath 3  (Ref 5088)'),
+            ('4999', 'Bath 4  (Ref 4999)'),
+        ]:
             btn = QPushButton(label)
             btn.setFixedHeight(32)
             btn.clicked.connect(
-                lambda checked, s=sid: self._cnc1_move_to(s)
+                lambda checked, s=sensor_id: self._cnc_move_reference(s)
             )
-            gv1.addWidget(btn)
+            gv_x.addWidget(btn)
 
-        gv1.addStretch()
-        cnc_h.addWidget(grp1)
+        gv_x.addStretch()
+        cnc_h.addWidget(grp_x)
 
-        # ── CONNECTOR 2 -- Batch sensors ──────────────────────
-        grp2 = QGroupBox("Connector 2  —  PT100 Batch Sensors")
-        gv2  = QVBoxLayout(grp2)
-        gv2.setSpacing(8)
+        # ── Y AXIS -- Batch sensor positions ──────────────────
+        grp_y = QGroupBox("Y Axis  —  Batch Sensor Positions")
+        gv_y  = QVBoxLayout(grp_y)
+        gv_y.setSpacing(6)
 
-        # Connection row
-        port_h2 = QHBoxLayout()
-        port_h2.addWidget(QLabel("Port:"))
-        self.cnc2_port_entry = QLineEdit(config.get('cnc2_port', 'COM4'))
-        self.cnc2_port_entry.setFixedWidth(75)
-        conn2_btn    = QPushButton("Connect")
-        conn2_btn.setFixedWidth(85)
-        disconn2_btn = QPushButton("Disconnect")
-        disconn2_btn.setFixedWidth(95)
-        conn2_btn.clicked.connect(self._connect_cnc2)
-        disconn2_btn.clicked.connect(self._disconnect_cnc2)
-        port_h2.addWidget(self.cnc2_port_entry)
-        port_h2.addWidget(conn2_btn)
-        port_h2.addWidget(disconn2_btn)
-        port_h2.addStretch()
-        gv2.addLayout(port_h2)
-
-        self.cnc2_status_lbl = QLabel("● NOT CONNECTED")
-        self.cnc2_status_lbl.setStyleSheet("color: #c0614a; font-weight: bold; font-size: 11px;")
-        gv2.addWidget(self.cnc2_status_lbl)
-
-        # Divider
-        d3 = QFrame(); d3.setFrameShape(QFrame.HLine)
-        d3.setStyleSheet("color: #c2c8d0;")
-        gv2.addWidget(d3)
-
-        # Manual jog
-        jog_lbl2 = QLabel("MANUAL JOG")
-        jog_lbl2.setStyleSheet("color: #7a8290; font-size: 9px; letter-spacing: 2px;")
-        gv2.addWidget(jog_lbl2)
-        step_h2 = QHBoxLayout()
-        step_h2.addWidget(QLabel("Step:"))
-        self._cnc2_step = QComboBox()
-        self._cnc2_step.addItems(["0.1 mm", "0.5 mm", "1 mm", "5 mm", "10 mm", "50 mm", "100 mm"])
-        self._cnc2_step.setCurrentText("1 mm")
-        self._cnc2_step.setFixedWidth(90)
-        step_h2.addWidget(self._cnc2_step)
-        step_h2.addStretch()
-        gv2.addLayout(step_h2)
-        jog_h2 = QHBoxLayout()
-        jog_h2.setSpacing(5)
-        for lbl, cmd in [("X−","X-"),("X+","X+"),("Z−","Z-"),("Z+","Z+"),("⌂ Home","H")]:
-            b = QPushButton(lbl)
-            b.setFixedHeight(32)
-            b.setFixedWidth(95 if lbl == "⌂ Home" else 52)
-            b.clicked.connect(lambda checked, c=cmd: self._cnc_jog(2, c, float(self._cnc2_step.currentText().split()[0])))
-            jog_h2.addWidget(b)
-        jog_h2.addStretch()
-        gv2.addLayout(jog_h2)
-
-        # Pogo pins
-        pogo_h2 = QHBoxLayout()
-        cp2 = QPushButton("▼  Connect Pins")
-        cp2.setFixedHeight(32)
-        cp2.setStyleSheet("QPushButton{border:1.5px solid #5a9e6f;color:#5a9e6f;border-radius:8px;}"
-                          "QPushButton:hover{background-color:#5a9e6f;color:white;}")
-        rp2 = QPushButton("▲  Retract Pins")
-        rp2.setFixedHeight(32)
-        rp2.setStyleSheet("QPushButton{border:1.5px solid #c0614a;color:#c0614a;border-radius:8px;}"
-                          "QPushButton:hover{background-color:#c0614a;color:white;}")
-        cp2.clicked.connect(lambda: self._cnc_pogo_connect(2))
-        rp2.clicked.connect(lambda: self._cnc_pogo_disconnect(2))
-        pogo_h2.addWidget(cp2)
-        pogo_h2.addWidget(rp2)
-        pogo_h2.addStretch()
-        gv2.addLayout(pogo_h2)
-
-        # Divider
-        d4 = QFrame(); d4.setFrameShape(QFrame.HLine)
-        d4.setStyleSheet("color: #c2c8d0;")
-        gv2.addWidget(d4)
-
-        # Batch position buttons -- 10 positions in a grid
-        pos_lbl2 = QLabel("MOVE TO POSITION")
-        pos_lbl2.setStyleSheet("color: #7a8290; font-size: 9px; letter-spacing: 2px;")
-        gv2.addWidget(pos_lbl2)
+        pos_lbl_y = QLabel("MOVE Y TO POSITION")
+        pos_lbl_y.setStyleSheet("color: #7a8290; font-size: 9px; letter-spacing: 2px;")
+        gv_y.addWidget(pos_lbl_y)
 
         batch_positions = [
             (1, 1, 'Bath 1-1  Slot 1'),
@@ -852,19 +803,18 @@ class MainWindow(QMainWindow):
             (4, 1, 'Bath 4    Slot 1'),
             (4, 2, 'Bath 4    Slot 2'),
         ]
-        # 2-column grid layout for buttons
         btn_grid = QGridLayout()
         btn_grid.setSpacing(5)
         for i, (bath_no, slot, label) in enumerate(batch_positions):
             btn = QPushButton(label)
             btn.setFixedHeight(30)
             btn.clicked.connect(
-                lambda checked, b=bath_no, s=slot: self._cnc2_move_to(b, s)
+                lambda checked, b=bath_no, s=slot: self._cnc_move_batch(b, s)
             )
             btn_grid.addWidget(btn, i // 2, i % 2)
-        gv2.addLayout(btn_grid)
-        gv2.addStretch()
-        cnc_h.addWidget(grp2)
+        gv_y.addLayout(btn_grid)
+        gv_y.addStretch()
+        cnc_h.addWidget(grp_y)
 
         v.addLayout(cnc_h)
 
@@ -1182,58 +1132,56 @@ class MainWindow(QMainWindow):
         conn_grp  = QGroupBox("Connection Settings")
         conn_form = QFormLayout(conn_grp)
         for key, label in [
-            ('cnc1_port',      'CNC 1 COM port  (Connector 1 -- Ref SPRT)'),
-            ('cnc2_port',      'CNC 2 COM port  (Connector 2 -- Batch sensors)'),
-            ('cnc_baud',       'Baud rate'),
-            ('cnc1_feed_rate', 'CNC 1 feed rate  (mm/min)'),
-            ('cnc2_feed_rate', 'CNC 2 feed rate  (mm/min)'),
+            ('cnc_port',      'COM port'),
+            ('cnc_baud',      'Baud rate'),
+            ('cnc_feed_rate', 'Feed rate  (mm/min)'),
+            ('cnc_z_connect', 'Z connect depth  (mm)'),
+            ('cnc_z_clear',   'Z clear position  (mm)'),
         ]:
             entry = QLineEdit(config.get(key, ''))
             conn_form.addRow(label, entry)
             self._cnc_config_entries[key] = entry
         v.addWidget(conn_grp)
 
-        # ── Connector 1 -- Reference SPRT (4 X positions + Z) ─
-        cnc1_grp  = QGroupBox("Connector 1  —  Reference SPRT  (4 X positions + Z connect)")
-        cnc1_form = QFormLayout(cnc1_grp)
+        # ── X axis -- Reference SPRT positions ────────────────
+        x_grp  = QGroupBox("X Axis  —  Reference SPRT  (4 positions)")
+        x_form = QFormLayout(x_grp)
         for key, label in [
-            ('cnc1_x_ref_5003', 'X  →  Ref 5003  (Bath 1-1 / 1-2)  mm'),
-            ('cnc1_x_ref_5004', 'X  →  Ref 5004  (Bath 2)           mm'),
-            ('cnc1_x_ref_5088', 'X  →  Ref 5088  (Bath 3)           mm'),
-            ('cnc1_x_ref_4999', 'X  →  Ref 4999  (Bath 4)           mm'),
-            ('cnc1_z_connect',  'Z  →  Connect depth                mm'),
+            ('cnc_x_ref_5003', 'Ref 5003  (Bath 1-1 / 1-2)  mm'),
+            ('cnc_x_ref_5004', 'Ref 5004  (Bath 2)           mm'),
+            ('cnc_x_ref_5088', 'Ref 5088  (Bath 3)           mm'),
+            ('cnc_x_ref_4999', 'Ref 4999  (Bath 4)           mm'),
         ]:
             entry = QLineEdit(config.get(key, ''))
             entry.setFont(QFont("Courier New", 10))
-            cnc1_form.addRow(label, entry)
+            x_form.addRow(label, entry)
             self._cnc_config_entries[key] = entry
-        v.addWidget(cnc1_grp)
+        v.addWidget(x_grp)
 
-        # ── Connector 2 -- Batch sensors (10 X positions + Z) ─
-        cnc2_grp  = QGroupBox("Connector 2  —  Batch Sensors  (10 X positions + Z connect)")
-        cnc2_form = QFormLayout(cnc2_grp)
+        # ── Y axis -- Batch sensor positions ──────────────────
+        y_grp  = QGroupBox("Y Axis  —  Batch Sensors  (14 positions)")
+        y_form = QFormLayout(y_grp)
         for key, label in [
-            ('cnc2_x_bath1_1_slot_1', 'X  →  Bath 1-1  Slot 1  mm'),
-            ('cnc2_x_bath1_1_slot_2', 'X  →  Bath 1-1  Slot 2  mm'),
-            ('cnc2_x_bath1_1_slot_3', 'X  →  Bath 1-1  Slot 3  mm'),
-            ('cnc2_x_bath1_1_slot_4', 'X  →  Bath 1-1  Slot 4  mm'),
-            ('cnc2_x_bath1_2_slot_1', 'X  →  Bath 1-2  Slot 1  mm'),
-            ('cnc2_x_bath1_2_slot_2', 'X  →  Bath 1-2  Slot 2  mm'),
-            ('cnc2_x_bath1_2_slot_3', 'X  →  Bath 1-2  Slot 3  mm'),
-            ('cnc2_x_bath1_2_slot_4', 'X  →  Bath 1-2  Slot 4  mm'),
-            ('cnc2_x_bath2_slot_1',   'X  →  Bath 2    Slot 1  mm'),
-            ('cnc2_x_bath2_slot_2',   'X  →  Bath 2    Slot 2  mm'),
-            ('cnc2_x_bath3_slot_1',   'X  →  Bath 3    Slot 1  mm'),
-            ('cnc2_x_bath3_slot_2',   'X  →  Bath 3    Slot 2  mm'),
-            ('cnc2_x_bath4_slot_1',   'X  →  Bath 4    Slot 1  mm'),
-            ('cnc2_x_bath4_slot_2',   'X  →  Bath 4    Slot 2  mm'),
-            ('cnc2_z_connect',        'Z  →  Connect depth     mm'),
+            ('cnc_y_bath1_1_slot_1', 'Bath 1-1  Slot 1  mm'),
+            ('cnc_y_bath1_1_slot_2', 'Bath 1-1  Slot 2  mm'),
+            ('cnc_y_bath1_1_slot_3', 'Bath 1-1  Slot 3  mm'),
+            ('cnc_y_bath1_1_slot_4', 'Bath 1-1  Slot 4  mm'),
+            ('cnc_y_bath1_2_slot_1', 'Bath 1-2  Slot 1  mm'),
+            ('cnc_y_bath1_2_slot_2', 'Bath 1-2  Slot 2  mm'),
+            ('cnc_y_bath1_2_slot_3', 'Bath 1-2  Slot 3  mm'),
+            ('cnc_y_bath1_2_slot_4', 'Bath 1-2  Slot 4  mm'),
+            ('cnc_y_bath2_slot_1',   'Bath 2    Slot 1  mm'),
+            ('cnc_y_bath2_slot_2',   'Bath 2    Slot 2  mm'),
+            ('cnc_y_bath3_slot_1',   'Bath 3    Slot 1  mm'),
+            ('cnc_y_bath3_slot_2',   'Bath 3    Slot 2  mm'),
+            ('cnc_y_bath4_slot_1',   'Bath 4    Slot 1  mm'),
+            ('cnc_y_bath4_slot_2',   'Bath 4    Slot 2  mm'),
         ]:
             entry = QLineEdit(config.get(key, ''))
             entry.setFont(QFont("Courier New", 10))
-            cnc2_form.addRow(label, entry)
+            y_form.addRow(label, entry)
             self._cnc_config_entries[key] = entry
-        v.addWidget(cnc2_grp)
+        v.addWidget(y_grp)
 
         v.addStretch()
         scroll = QScrollArea()
@@ -1284,159 +1232,102 @@ class MainWindow(QMainWindow):
     # ----------------------------------------------------------
     # CNC ACTIONS
     # ----------------------------------------------------------
-    def _connect_cnc1(self):
-        port = self.cnc1_port_entry.text().strip()
+    def _on_cnc_disable_toggled(self, checked):
+        self.cnc_disabled = checked
+        if checked:
+            self.log("  [CNC] DISABLED -- session will run in manual mode (no CNC movements)")
+        else:
+            self.log("  [CNC] Enabled -- CNC will control connectors during session")
+
+    def _connect_cnc(self):
+        port = self.cnc_port_entry.text().strip()
         try:
             m = self._cnc
             if m is None: return
-            self.cnc1 = m.cnc_connect(port)
-            self.cnc1_status_lbl.setText("● CONNECTED")
-            self.cnc1_status_lbl.setStyleSheet("color: #5a9e6f; font-weight: bold;")
-            self._set_status(self.cnc1_dot, self.cnc1_lbl, "CNC 1", True)
-            self.log(f"  [CNC1] Connected on {port}")
+            self.cnc = m.cnc_connect(port)
+            self.cnc_status_lbl.setText("● CONNECTED")
+            self.cnc_status_lbl.setStyleSheet("color: #5a9e6f; font-weight: bold;")
+            self._set_status(self.cnc_dot, self.cnc_lbl, "CNC", True)
+            self.log(f"  [CNC] Connected on {port}")
         except Exception as e:
-            QMessageBox.warning(self, "CNC 1 Error", str(e))
-            self.log(f"  ⚠ [CNC1] Connection failed: {e}")
+            QMessageBox.warning(self, "CNC Error", str(e))
+            self.log(f"  ⚠ [CNC] Connection failed: {e}")
 
-    def _disconnect_cnc1(self):
+    def _disconnect_cnc(self):
         try:
             m = self._cnc
-            if m: m.cnc_close(self.cnc1)
+            if m: m.cnc_close(self.cnc)
         except Exception:
             pass
-        self.cnc1 = None
-        self.cnc1_status_lbl.setText("● NOT CONNECTED")
-        self.cnc1_status_lbl.setStyleSheet("color: #c0614a; font-weight: bold;")
-        self._set_status(self.cnc1_dot, self.cnc1_lbl, "CNC 1", False)
-        self.log("  [CNC1] Disconnected")
+        self.cnc = None
+        self.cnc_status_lbl.setText("● NOT CONNECTED")
+        self.cnc_status_lbl.setStyleSheet("color: #c0614a; font-weight: bold;")
+        self._set_status(self.cnc_dot, self.cnc_lbl, "CNC", False)
+        self.log("  [CNC] Disconnected")
 
-    def _connect_cnc2(self):
-        port = self.cnc2_port_entry.text().strip()
-        try:
-            m = self._cnc
-            if m is None: return
-            self.cnc2 = m.cnc_connect(port)
-            self.cnc2_status_lbl.setText("● CONNECTED")
-            self.cnc2_status_lbl.setStyleSheet("color: #5a9e6f; font-weight: bold;")
-            self._set_status(self.cnc2_dot, self.cnc2_lbl, "CNC 2", True)
-            self.log(f"  [CNC2] Connected on {port}")
-        except Exception as e:
-            QMessageBox.warning(self, "CNC 2 Error", str(e))
-            self.log(f"  ⚠ [CNC2] Connection failed: {e}")
-
-    def _disconnect_cnc2(self):
-        try:
-            m = self._cnc
-            if m: m.cnc_close(self.cnc2)
-        except Exception:
-            pass
-        self.cnc2 = None
-        self.cnc2_status_lbl.setText("● NOT CONNECTED")
-        self.cnc2_status_lbl.setStyleSheet("color: #c0614a; font-weight: bold;")
-        self._set_status(self.cnc2_dot, self.cnc2_lbl, "CNC 2", False)
-        self.log("  [CNC2] Disconnected")
-
-    def _cnc_jog(self, cnc_no, direction, step=1.0):
-        cnc = self.cnc1 if cnc_no == 1 else self.cnc2
-        if cnc is None:
-            self.log(f"  ⚠ [CNC{cnc_no}] Not connected")
+    def _cnc_jog(self, direction, step=1.0):
+        if self.cnc is None:
+            self.log("  ⚠ [CNC] Not connected")
             return
         try:
             m = self._cnc
             if m is None: return
-            feed = config.CNC1_FEED_RATE if cnc_no == 1 else config.CNC2_FEED_RATE
-            m.cnc_jog(cnc, direction, feed, step=float(step))
-            self.log(f"  [CNC{cnc_no}] Jog {direction}  {step} mm")
+            m.cnc_jog(self.cnc, direction, config.CNC_FEED_RATE, step=float(step))
+            self.log(f"  [CNC] Jog {direction}  {step} mm")
         except Exception as e:
-            self.log(f"  ⚠ [CNC{cnc_no}] Jog error: {e}")
+            self.log(f"  ⚠ [CNC] Jog error: {e}")
 
-    def _cnc_pogo_connect(self, cnc_no):
-        cnc = self.cnc1 if cnc_no == 1 else self.cnc2
-        if cnc is None:
-            self.log(f"  ⚠ [CNC{cnc_no}] Not connected")
+    def _cnc_pogo_connect(self):
+        if self.cnc is None:
+            self.log("  ⚠ [CNC] Not connected")
             return
         try:
             m = self._cnc
             if m is None: return
-            z   = config.CNC1_Z_CONNECT if cnc_no == 1 else config.CNC2_Z_CONNECT
-            feed = config.CNC1_FEED_RATE if cnc_no == 1 else config.CNC2_FEED_RATE
-            m.cnc_z_move(cnc, z, feed)
-            self.log(f"  [CNC{cnc_no}] Pogo pins connected (Z={config.CNC_Z_CONNECT}mm)")
+            m.cnc_z_move(self.cnc, config.CNC_Z_CONNECT, config.CNC_FEED_RATE)
+            self.log(f"  [CNC] Pogo pins connected (Z={config.CNC_Z_CONNECT} mm)")
         except Exception as e:
-            self.log(f"  ⚠ [CNC{cnc_no}] Connect error: {e}")
+            self.log(f"  ⚠ [CNC] Connect error: {e}")
 
-    def _cnc_pogo_disconnect(self, cnc_no):
-        cnc = self.cnc1 if cnc_no == 1 else self.cnc2
-        if cnc is None:
-            self.log(f"  ⚠ [CNC{cnc_no}] Not connected")
+    def _cnc_pogo_disconnect(self):
+        if self.cnc is None:
+            self.log("  ⚠ [CNC] Not connected")
             return
         try:
             m = self._cnc
             if m is None: return
-            z    = config.CNC1_Z_CLEAR if cnc_no == 1 else config.CNC2_Z_CLEAR
-            feed = config.CNC1_FEED_RATE if cnc_no == 1 else config.CNC2_FEED_RATE
-            m.cnc_z_move(cnc, z, feed)
-            self.log(f"  [CNC{cnc_no}] Pogo pins retracted (Z={config.CNC_Z_CLEAR}mm)")
+            m.cnc_z_move(self.cnc, config.CNC_Z_CLEAR, config.CNC_FEED_RATE)
+            self.log(f"  [CNC] Pogo pins retracted (Z={config.CNC_Z_CLEAR} mm)")
         except Exception as e:
-            self.log(f"  ⚠ [CNC{cnc_no}] Retract error: {e}")
+            self.log(f"  ⚠ [CNC] Retract error: {e}")
 
-    def _cnc1_move_to(self, sensor_id):
-        """Move CNC 1 to stored X position for a reference sensor."""
-        if self.cnc1 is None:
-            self.log(f"  ⚠ [CNC1] Not connected")
+    def _cnc_move_reference(self, sensor_id):
+        """Move X to stored position for a reference sensor."""
+        if self.cnc is None:
+            self.log("  ⚠ [CNC] Not connected")
             return
         try:
             m = self._cnc
             if m is None: return
-            m.cnc1_move_to_reference(self.cnc1, sensor_id)
-            x = config.CNC1_X_POSITIONS.get(sensor_id, '?')
-            self.log(f"  [CNC1] Moved to Ref {sensor_id}  X={x} mm")
+            m.cnc_move_reference(self.cnc, sensor_id)
+            x = config.CNC_X_POSITIONS.get(sensor_id, '?')
+            self.log(f"  [CNC] X moved to Ref {sensor_id}  ({x} mm)")
         except Exception as e:
-            self.log(f"  ⚠ [CNC1] Move error: {e}")
+            self.log(f"  ⚠ [CNC] X move error: {e}")
 
-    def _cnc2_move_to(self, bath_no, slot):
-        """Move CNC 2 to stored X position for a bath/slot."""
-        if self.cnc2 is None:
-            self.log(f"  ⚠ [CNC2] Not connected")
+    def _cnc_move_batch(self, bath_no, slot):
+        """Move Y to stored position for a bath/slot."""
+        if self.cnc is None:
+            self.log("  ⚠ [CNC] Not connected")
             return
         try:
             m = self._cnc
             if m is None: return
-            m.cnc2_move_to_batch(self.cnc2, bath_no, slot)
-            x = config.CNC2_X_POSITIONS.get((bath_no, slot), '?')
-            self.log(f"  [CNC2] Moved to Bath {bath_no} Slot {slot}  X={x} mm")
+            m.cnc_move_batch(self.cnc, bath_no, slot)
+            y = config.CNC_Y_POSITIONS.get((bath_no, slot), '?')
+            self.log(f"  [CNC] Y moved to Bath {bath_no} Slot {slot}  ({y} mm)")
         except Exception as e:
-            self.log(f"  ⚠ [CNC2] Move error: {e}")
-
-    def _save_cnc1_positions(self):
-        if not self.conn:
-            return
-        for key, entry in self._cnc1_pos_entries.items():
-            val = entry.text().strip()
-            if val:
-                config.save_config(self.conn, key, val)
-        # Save Z
-        z_val = self._cnc1_z_entry.text().strip()
-        if z_val:
-            config.save_config(self.conn, 'cnc1_z_connect', z_val)
-        self.log("  [CNC1] Positions saved to DB.")
-
-    def _save_cnc2_positions(self):
-        if not self.conn:
-            return
-        for key, entry in self._cnc2_pos_entries.items():
-            val = entry.text().strip()
-            if val:
-                config.save_config(self.conn, key, val)
-        # Save Z
-        z_val = self._cnc2_z_entry.text().strip()
-        if z_val:
-            config.save_config(self.conn, 'cnc2_z_connect', z_val)
-        self.log("  [CNC2] Positions saved to DB.")
-
-    def _save_slot_positions(self):
-        # Legacy -- redirects to new save method
-        self._save_cnc2_positions()
+            self.log(f"  ⚠ [CNC] Y move error: {e}")
 
     # ----------------------------------------------------------
     # SENSOR LIST + SKIP
@@ -1592,8 +1483,8 @@ class MainWindow(QMainWindow):
 
         self.worker = MeasurementWorker(
             session_config, self.wait_times,
-            cnc1=self.cnc1, cnc2=self.cnc2,
-            bridge=self.bridge, sim_config=sim_config
+            cnc=self.cnc, bridge=self.bridge,
+            sim_config=sim_config, cnc_disabled=self.cnc_disabled
         )
         self.worker.log_signal.connect(self.log)
         self.worker.reading_signal.connect(self.on_reading)
@@ -1750,16 +1641,10 @@ class MainWindow(QMainWindow):
     def closeEvent(self, event):
         if self.worker:
             self.worker.stop()
-        if self.cnc1:
+        if self.cnc:
             try:
                 m = self._cnc
-                if m: m.cnc_close(self.cnc1)
-            except Exception:
-                pass
-        if self.cnc2:
-            try:
-                m = self._cnc
-                if m: m.cnc_close(self.cnc2)
+                if m: m.cnc_close(self.cnc)
             except Exception:
                 pass
         if self.bridge:
