@@ -1608,6 +1608,18 @@ class MainWindow(QMainWindow):
         for t in self.qtimers.values():
             t.stop()
 
+        # ── Generate calibration report automatically ─────────
+        try:
+            from tools.report import generate_reports
+            paths = generate_reports(self.conn)
+            if paths:
+                for p in paths:
+                    self.log(f"  Report saved: {p}")
+            else:
+                self.log("  ⚠ No report generated -- no data in MeasTemp")
+        except Exception as e:
+            self.log(f"  ⚠ Report generation error: {e}")
+
     def _save_reports(self):
         if not self.conn:
             QMessageBox.warning(self, "No Database", "No database connection.")
