@@ -283,26 +283,32 @@ class MainWindow(QMainWindow):
             self.sim_btn.setVisible(True)
 
     def _connect_cnc_on_startup(self):
-        port = config.CNC_PORT
-        baud = config.CNC_BAUD
-        self.log(f"  Connecting to CNC on {port}...")
+        self.log(f"  Connecting to CNC on {config.CNC_PORT}...")
+        self._do_connect_cnc(config.CNC_PORT)
+
+    def _do_connect_cnc(self, port):
+        """Shared CNC connection logic used by startup and the manual Connect button."""
         cnc_mod = self._cnc
+        connected = False
         if cnc_mod is None:
             self.log("  [CNC] cnc.control not available -- CNC disabled.")
-            self._set_status(self.cnc_dot, self.cnc_lbl, "CNC", False)
-            return
-        try:
-            self.cnc = cnc_mod.cnc_connect(port, baud)
-            if self.cnc:
-                self.log(f"  [CNC] Connected on {port}.")
-                self._set_status(self.cnc_dot, self.cnc_lbl, "CNC", True)
-            else:
-                self.log(f"  [CNC] Not found on {port} -- manual mode.")
-                self._set_status(self.cnc_dot, self.cnc_lbl, "CNC", False)
-        except Exception as e:
-            self.log(f"  [CNC] Connection error: {e}")
-            self._set_status(self.cnc_dot, self.cnc_lbl, "CNC", False)
-            self.cnc = None
+        else:
+            try:
+                self.cnc = cnc_mod.cnc_connect(port, config.CNC_BAUD)
+                if self.cnc:
+                    self.log(f"  [CNC] Connected on {port}.")
+                    connected = True
+                else:
+                    self.log(f"  [CNC] Not found on {port} -- manual mode.")
+            except Exception as e:
+                self.log(f"  [CNC] Connection error: {e}")
+                self.cnc = None
+
+        self._set_status(self.cnc_dot, self.cnc_lbl, "CNC", connected)
+        self.cnc_status_lbl.setText("● CONNECTED" if connected else "● NOT CONNECTED")
+        self.cnc_status_lbl.setStyleSheet(
+            f"color: {'#5a9e6f' if connected else '#c0614a'}; font-weight: bold;"
+        )
 
     def _reconnect_bridge(self):
         if self.bridge:
@@ -1279,18 +1285,10 @@ class MainWindow(QMainWindow):
             self.log("  [CNC] Enabled -- CNC will control connectors during session")
 
     def _connect_cnc(self):
-        port = self.cnc_port_entry.text().strip()
-        try:
-            m = self._cnc
-            if m is None: return
-            self.cnc = m.cnc_connect(port)
-            self.cnc_status_lbl.setText("● CONNECTED")
-            self.cnc_status_lbl.setStyleSheet("color: #5a9e6f; font-weight: bold;")
-            self._set_status(self.cnc_dot, self.cnc_lbl, "CNC", True)
-            self.log(f"  [CNC] Connected on {port}")
-        except Exception as e:
-            QMessageBox.warning(self, "CNC Error", str(e))
-            self.log(f"  ⚠ [CNC] Connection failed: {e}")
+        if self.cnc:
+            self._disconnect_cnc()
+        port = self.cnc_port_entry.text().strip() or config.CNC_PORT
+        self._do_connect_cnc(port)
 
     def _disconnect_cnc(self):
         try:
