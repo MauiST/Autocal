@@ -191,13 +191,16 @@ def cnc_jog(cnc, direction, feed_rate, step=JOG_STEP):
         feed_rate  : int -- mm/min
         step       : float -- mm per click (default 1.0)
     """
+    # Use $J= (GRBL 1.1 dedicated jog command) for all axis moves.
+    # $J= uses a separate jog buffer, does not affect modal state (no G90
+    # needed after), and behaves identically to how Candle jogs.
     axis_map = {
-        'X+': f'G91 X{step} F{feed_rate}',
-        'X-': f'G91 X-{step} F{feed_rate}',
-        'Y+': f'G91 Y{step} F{feed_rate}',
-        'Y-': f'G91 Y-{step} F{feed_rate}',
-        'Z+': f'G91 Z{step} F{feed_rate}',
-        'Z-': f'G91 Z-{step} F{feed_rate}',
+        'X+': f'$J=G91 X{step} F{feed_rate}',
+        'X-': f'$J=G91 X-{step} F{feed_rate}',
+        'Y+': f'$J=G91 Y{step} F{feed_rate}',
+        'Y-': f'$J=G91 Y-{step} F{feed_rate}',
+        'Z+': f'$J=G91 Z{step} F{feed_rate}',
+        'Z-': f'$J=G91 Z-{step} F{feed_rate}',
         'H':  '$H',   # GRBL homing cycle
     }
     cmd = axis_map.get(direction)
@@ -205,8 +208,6 @@ def cnc_jog(cnc, direction, feed_rate, step=JOG_STEP):
         raise ValueError(f"Unknown jog direction: {direction}")
 
     _send_command(cnc, cmd)
-    if direction != 'H':
-        _send_command(cnc, 'G90')  # back to absolute
     _wait_idle(cnc)
 
 
@@ -298,10 +299,11 @@ def _wait_idle(cnc, timeout=MOVE_TIMEOUT):
     but before motion actually starts, causing _wait_idle to return early.
     Raises Exception on timeout.
     """
-    time.sleep(0.3)   # let GRBL transition Idle → Run before first poll
+    time.sleep(0.3)            # let GRBL transition Idle → Run before polling
+    cnc.reset_input_buffer()   # discard any stale ok/status bytes in the buffer
     deadline = time.time() + timeout
     while time.time() < deadline:
-        cnc.write(b'?\n')
+        cnc.write(b'?')        # real-time character only -- no \n, no extra G-code line
         time.sleep(POLL_INTERVAL)
         response = cnc.readline().decode('utf-8', errors='ignore').strip()
         if 'Idle' in response:
