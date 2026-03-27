@@ -21,8 +21,11 @@ SPRT_JSON_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "sprt_
 # =============================================================
 # --- BATH CONFIGURATION
 # =============================================================
-# Bath 1 is split into Bath 1-1 (first 0C) and Bath 1-2 (second 0C)
-# 4-point calibration order: 1-1 -> 2 -> 3 -> 4 -> 1-2
+# Bath 1 (0°C ice point) is measured twice:
+#   bath_no=1 → Bath 1 1st  (first 0C measurement)
+#   bath_no=5 → Bath 1 2nd  (second 0C measurement, compared against 1st)
+# NOTE: "Bath 1-1 / Bath 1-2" refer to CNC matrix slot positions only.
+# 4-point calibration order: Bath 1 1st -> Bath 2 -> Bath 3 -> Bath 4 -> Bath 1 2nd
 
 BATH_COLUMN = {
     1: 'MeasRes_0',
@@ -33,11 +36,11 @@ BATH_COLUMN = {
 }
 
 BATH_LABEL = {
-    1: 'Bath 1-1  (0C)',
-    2: 'Bath 2    (-195C)',
-    3: 'Bath 3    (-76C)',
-    4: 'Bath 4    (100C)',
-    5: 'Bath 1-2  (0C) 2nd',
+    1: 'Bath 1 1st  (0C)',
+    2: 'Bath 2      (-195C)',
+    3: 'Bath 3      (-76C)',
+    4: 'Bath 4      (100C)',
+    5: 'Bath 1 2nd  (0C)',
 }
 
 BATH_WAIT_DEFAULT = {

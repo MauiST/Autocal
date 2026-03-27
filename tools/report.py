@@ -23,7 +23,7 @@ REPORT_DIR = os.path.join(
 
 # Bath definitions for the report rows
 BATH_ROWS = [
-    (1, 'Bath 1-1', '   0°C', 'MeasRes_0',    'CalculatedTempRef(0)',
+    (1, 'Bath 1 1st', '   0°C', 'MeasRes_0',    'CalculatedTempRef(0)',
      'MeasTemp(0)', 'DevResEN60751(0)', 'DevTempEN60751(0)'),
     (2, 'Bath 2  ', '-195°C', 'MeasRes_n195', 'CalculatedTempRef(-195)',
      'MeasTemp(-195)', 'DevResEN60751(-195)', 'DevTempEN60751(-195)'),
@@ -161,7 +161,7 @@ def fetch_report_data(conn):
             by_cert[cert_key] = []
 
         baths = [
-            {'label': 'Bath 1-1', 'point': '0°C',
+            {'label': 'Bath 1 1st', 'point': '0°C',
              'res': r0,    'tref': tref0,    'tsens': temp0,
              'dres': dres0,    'dtemp': dtemp0,
              'class': _class_from_dev_temp(dtemp0)},
@@ -242,11 +242,11 @@ def _format_report(cert_no, sensors, seq_no):
                 f'{(b["class"] or "---"):5}'
             )
 
-        # Bath 1-2 row
+        # Bath 1 2nd row
         r2nd = s['res_0_2nd']
         r2nd_str = f'{r2nd:.7f}' if r2nd is not None else '---'
         line(
-            f'  {"Bath 1-2":9}  {"0°C":7}  '
+            f'  {"Bath 1 2nd":9}  {"0°C":7}  '
             f'{"":>13}  {r2nd_str:>14}  '
             f'{"":>13}  {"":>11}  {"":>9}  '
             f'{"(2nd)":5}'

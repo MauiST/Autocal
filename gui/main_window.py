@@ -1154,8 +1154,8 @@ class MainWindow(QMainWindow):
         fields = [
             ('stage1_threshold',          'Stage 1 threshold'),
             ('stage2_threshold',          'Stage 2 threshold'),
-            ('bath1_resistance_warn_mk',  'Bath 1-2 resistance drift limit (mK)'),
-            ('bath1_temperature_warn_mk', 'Bath 1-2 temperature drift limit (mK)'),
+            ('bath1_resistance_warn_mk',  'Bath 1 2nd resistance drift limit (mK)'),
+            ('bath1_temperature_warn_mk', 'Bath 1 2nd temperature drift limit (mK)'),
         ]
         for key, label in fields:
             entry = QLineEdit(config.get(key, ''))
