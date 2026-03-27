@@ -534,7 +534,10 @@ class MainWindow(QMainWindow):
             row_h.addWidget(QLabel("Batches:"))
             batch_combos = []
             max_batches = 4 if bath_no in (1, 5) else 2
-            for _ in range(max_batches):
+            for slot_no in range(1, max_batches + 1):
+                slot_lbl = QLabel(f"{slot_no}:")
+                slot_lbl.setStyleSheet("color: #7a8290; font-size: 10px;")
+                row_h.addWidget(slot_lbl)
                 bc = QComboBox()
                 bc.addItem("--", None)
                 for bn in self.available_batches:
@@ -547,7 +550,7 @@ class MainWindow(QMainWindow):
 
             # Pad Bath 2/3/4 rows with a spacer to align with Bath 1 rows
             if max_batches == 2:
-                row_h.addSpacing(48 * 2 + 12)   # 2 missing combos + spacing
+                row_h.addSpacing(48 * 2 + 24)   # 2 missing combos + labels + spacing
 
             row_h.addStretch()
             bath_v.addLayout(row_h)
