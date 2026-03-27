@@ -246,6 +246,7 @@ class MainWindow(QMainWindow):
         self.log_window  = SessionLogWindow(self)
         self.sim_dialog  = SimDialog(self)
         self._connect_bridge_on_startup()
+        self._connect_cnc_on_startup()
 
     # ----------------------------------------------------------
     # CNC MODULE SAFE LOADER
@@ -280,6 +281,28 @@ class MainWindow(QMainWindow):
             self.log("  [BRIDGE] Not found -- simulation mode active.")
             self._set_status(self.bridge_dot, self.bridge_lbl, "BRIDGE", False)
             self.sim_btn.setVisible(True)
+
+    def _connect_cnc_on_startup(self):
+        port = config.CNC_PORT
+        baud = config.CNC_BAUD
+        self.log(f"  Connecting to CNC on {port}...")
+        cnc_mod = self._cnc_module
+        if cnc_mod is None:
+            self.log("  [CNC] cnc.control not available -- CNC disabled.")
+            self._set_status(self.cnc_dot, self.cnc_lbl, "CNC", False)
+            return
+        try:
+            self.cnc = cnc_mod.cnc_connect(port, baud)
+            if self.cnc:
+                self.log(f"  [CNC] Connected on {port}.")
+                self._set_status(self.cnc_dot, self.cnc_lbl, "CNC", True)
+            else:
+                self.log(f"  [CNC] Not found on {port} -- manual mode.")
+                self._set_status(self.cnc_dot, self.cnc_lbl, "CNC", False)
+        except Exception as e:
+            self.log(f"  [CNC] Connection error: {e}")
+            self._set_status(self.cnc_dot, self.cnc_lbl, "CNC", False)
+            self.cnc = None
 
     def _reconnect_bridge(self):
         if self.bridge:
