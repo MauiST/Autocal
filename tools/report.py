@@ -138,6 +138,11 @@ def fetch_report_data(conn):
             m.Skipped
         FROM MeasTemp m
         LEFT JOIN Sensors s ON m.Serial = s.Serial
+        WHERE m.Skipped = 1
+           OR m."MeasRes_0"    IS NOT NULL
+           OR m."MeasRes_n195" IS NOT NULL
+           OR m."MeasRes_n76"  IS NOT NULL
+           OR m."MeasRes_100"  IS NOT NULL
         ORDER BY s.CertificateNo, m.BatchNo, m.Serial
     """)
     rows = cursor.fetchall()
