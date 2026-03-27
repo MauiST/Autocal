@@ -117,32 +117,27 @@ CNC_Z_CONNECT   = -5.0
 CNC_Z_CLEAR     = 0.0
 CNC_DISABLED    = False   # set True to skip all CNC moves (manual mode)
 
-# X positions per reference sensor
+# X positions keyed by bath_no (1=Bath1-1, 2=Bath2, 3=Bath3, 4=Bath4, 5=Bath1-2)
 CNC_X_POSITIONS = {
-    '5003': 0.0,
-    '5004': 30.0,
-    '5088': 60.0,
-    '4999': 90.0,
+    1: 0.0,    # Bath 1-1
+    2: 30.0,   # Bath 2
+    3: 60.0,   # Bath 3
+    4: 90.0,   # Bath 4
+    5: 120.0,  # Bath 1-2 (separate position from Bath 1-1)
 }
 
-# Y positions per bath and slot
-# Key: (bath_no, slot) where bath_no matches BATH_COLUMN keys
-# Bath 1-1 (bath_no=1) and Bath 1-2 (bath_no=5) have 4 slots each
+# Y positions per bath and slot -- 2 slots per bath, 10 positions total
 CNC_Y_POSITIONS = {
     (1, 1): 0.0,    # Bath 1-1 Slot 1
     (1, 2): 30.0,   # Bath 1-1 Slot 2
-    (1, 3): 60.0,   # Bath 1-1 Slot 3
-    (1, 4): 90.0,   # Bath 1-1 Slot 4
-    (5, 1): 120.0,  # Bath 1-2 Slot 1
-    (5, 2): 150.0,  # Bath 1-2 Slot 2
-    (5, 3): 180.0,  # Bath 1-2 Slot 3
-    (5, 4): 210.0,  # Bath 1-2 Slot 4
-    (2, 1): 240.0,  # Bath 2 Slot 1
-    (2, 2): 270.0,  # Bath 2 Slot 2
-    (3, 1): 300.0,  # Bath 3 Slot 1
-    (3, 2): 330.0,  # Bath 3 Slot 2
-    (4, 1): 360.0,  # Bath 4 Slot 1
-    (4, 2): 390.0,  # Bath 4 Slot 2
+    (5, 1): 60.0,   # Bath 1-2 Slot 1
+    (5, 2): 90.0,   # Bath 1-2 Slot 2
+    (2, 1): 120.0,  # Bath 2 Slot 1
+    (2, 2): 150.0,  # Bath 2 Slot 2
+    (3, 1): 180.0,  # Bath 3 Slot 1
+    (3, 2): 210.0,  # Bath 3 Slot 2
+    (4, 1): 240.0,  # Bath 4 Slot 1
+    (4, 2): 270.0,  # Bath 4 Slot 2
 }
 
 # =============================================================
@@ -204,32 +199,24 @@ CONFIG_DEFAULTS = {
     'cnc_z_connect':  ('-5.0',   'cnc', 'Z depth for pogo pin contact mm'),
     'cnc_z_clear':    ('0.0',    'cnc', 'Z clear/home position mm'),
 
-    # X axis -- Reference SPRT positions (4 positions, one per bath)
-    'cnc_x_ref_5003': ('0.0',   'cnc', 'X position for ref 5003 (Bath 1)  mm'),
-    'cnc_x_ref_5004': ('30.0',  'cnc', 'X position for ref 5004 (Bath 2)  mm'),
-    'cnc_x_ref_5088': ('60.0',  'cnc', 'X position for ref 5088 (Bath 3)  mm'),
-    'cnc_x_ref_4999': ('90.0',  'cnc', 'X position for ref 4999 (Bath 4)  mm'),
+    # X axis -- Reference positions keyed by bath_no (5 positions)
+    'cnc_x_bath1_1': ('0.0',   'cnc', 'X position Bath 1-1 mm'),
+    'cnc_x_bath2':   ('30.0',  'cnc', 'X position Bath 2   mm'),
+    'cnc_x_bath3':   ('60.0',  'cnc', 'X position Bath 3   mm'),
+    'cnc_x_bath4':   ('90.0',  'cnc', 'X position Bath 4   mm'),
+    'cnc_x_bath1_2': ('120.0', 'cnc', 'X position Bath 1-2 mm'),
 
-    # Y axis -- Batch sensor positions (14 positions)
-    # Bath 1-1 (first 0C measurement) -- 4 slots
+    # Y axis -- Batch sensor positions (10 positions, 2 slots per bath)
     'cnc_y_bath1_1_slot_1': ('0.0',   'cnc', 'Y Bath 1-1 Slot 1 mm'),
     'cnc_y_bath1_1_slot_2': ('30.0',  'cnc', 'Y Bath 1-1 Slot 2 mm'),
-    'cnc_y_bath1_1_slot_3': ('60.0',  'cnc', 'Y Bath 1-1 Slot 3 mm'),
-    'cnc_y_bath1_1_slot_4': ('90.0',  'cnc', 'Y Bath 1-1 Slot 4 mm'),
-    # Bath 1-2 (second 0C measurement) -- 4 slots
-    'cnc_y_bath1_2_slot_1': ('120.0', 'cnc', 'Y Bath 1-2 Slot 1 mm'),
-    'cnc_y_bath1_2_slot_2': ('150.0', 'cnc', 'Y Bath 1-2 Slot 2 mm'),
-    'cnc_y_bath1_2_slot_3': ('180.0', 'cnc', 'Y Bath 1-2 Slot 3 mm'),
-    'cnc_y_bath1_2_slot_4': ('210.0', 'cnc', 'Y Bath 1-2 Slot 4 mm'),
-    # Bath 2
-    'cnc_y_bath2_slot_1':   ('240.0', 'cnc', 'Y Bath 2 Slot 1 mm'),
-    'cnc_y_bath2_slot_2':   ('270.0', 'cnc', 'Y Bath 2 Slot 2 mm'),
-    # Bath 3
-    'cnc_y_bath3_slot_1':   ('300.0', 'cnc', 'Y Bath 3 Slot 1 mm'),
-    'cnc_y_bath3_slot_2':   ('330.0', 'cnc', 'Y Bath 3 Slot 2 mm'),
-    # Bath 4
-    'cnc_y_bath4_slot_1':   ('360.0', 'cnc', 'Y Bath 4 Slot 1 mm'),
-    'cnc_y_bath4_slot_2':   ('390.0', 'cnc', 'Y Bath 4 Slot 2 mm'),
+    'cnc_y_bath1_2_slot_1': ('60.0',  'cnc', 'Y Bath 1-2 Slot 1 mm'),
+    'cnc_y_bath1_2_slot_2': ('90.0',  'cnc', 'Y Bath 1-2 Slot 2 mm'),
+    'cnc_y_bath2_slot_1':   ('120.0', 'cnc', 'Y Bath 2 Slot 1 mm'),
+    'cnc_y_bath2_slot_2':   ('150.0', 'cnc', 'Y Bath 2 Slot 2 mm'),
+    'cnc_y_bath3_slot_1':   ('180.0', 'cnc', 'Y Bath 3 Slot 1 mm'),
+    'cnc_y_bath3_slot_2':   ('210.0', 'cnc', 'Y Bath 3 Slot 2 mm'),
+    'cnc_y_bath4_slot_1':   ('240.0', 'cnc', 'Y Bath 4 Slot 1 mm'),
+    'cnc_y_bath4_slot_2':   ('270.0', 'cnc', 'Y Bath 4 Slot 2 mm'),
 
     'sprt_5003_roits':   ('25.673304498446',      'sprt', 'Sensor 5003 Roits'),
     'sprt_5003_a_sub':   ('-2.8008754547614E-04',  'sprt', 'Sensor 5003 a<0'),
@@ -400,27 +387,24 @@ def _apply_runtime():
     CNC_Z_CLEAR   = get_float('cnc_z_clear',    0.0)
 
     CNC_X_POSITIONS = {
-        '5003': get_float('cnc_x_ref_5003',  0.0),
-        '5004': get_float('cnc_x_ref_5004', 30.0),
-        '5088': get_float('cnc_x_ref_5088', 60.0),
-        '4999': get_float('cnc_x_ref_4999', 90.0),
+        1: get_float('cnc_x_bath1_1',   0.0),
+        2: get_float('cnc_x_bath2',    30.0),
+        3: get_float('cnc_x_bath3',    60.0),
+        4: get_float('cnc_x_bath4',    90.0),
+        5: get_float('cnc_x_bath1_2', 120.0),
     }
 
     CNC_Y_POSITIONS = {
         (1, 1): get_float('cnc_y_bath1_1_slot_1',   0.0),
         (1, 2): get_float('cnc_y_bath1_1_slot_2',  30.0),
-        (1, 3): get_float('cnc_y_bath1_1_slot_3',  60.0),
-        (1, 4): get_float('cnc_y_bath1_1_slot_4',  90.0),
-        (5, 1): get_float('cnc_y_bath1_2_slot_1', 120.0),
-        (5, 2): get_float('cnc_y_bath1_2_slot_2', 150.0),
-        (5, 3): get_float('cnc_y_bath1_2_slot_3', 180.0),
-        (5, 4): get_float('cnc_y_bath1_2_slot_4', 210.0),
-        (2, 1): get_float('cnc_y_bath2_slot_1',   240.0),
-        (2, 2): get_float('cnc_y_bath2_slot_2',   270.0),
-        (3, 1): get_float('cnc_y_bath3_slot_1',   300.0),
-        (3, 2): get_float('cnc_y_bath3_slot_2',   330.0),
-        (4, 1): get_float('cnc_y_bath4_slot_1',   360.0),
-        (4, 2): get_float('cnc_y_bath4_slot_2',   390.0),
+        (5, 1): get_float('cnc_y_bath1_2_slot_1',  60.0),
+        (5, 2): get_float('cnc_y_bath1_2_slot_2',  90.0),
+        (2, 1): get_float('cnc_y_bath2_slot_1',   120.0),
+        (2, 2): get_float('cnc_y_bath2_slot_2',   150.0),
+        (3, 1): get_float('cnc_y_bath3_slot_1',   180.0),
+        (3, 2): get_float('cnc_y_bath3_slot_2',   210.0),
+        (4, 1): get_float('cnc_y_bath4_slot_1',   240.0),
+        (4, 2): get_float('cnc_y_bath4_slot_2',   270.0),
     }
 
 

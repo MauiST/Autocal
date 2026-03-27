@@ -126,8 +126,8 @@ class MeasurementWorker(QThread):
         if self.cnc and not self.cnc_disabled:
             try:
                 from cnc.control import cnc_connect_reference
-                cnc_connect_reference(self.cnc, ref_name)
-                self.log(f"    [CNC] Reference {ref_name} positioned (X axis)")
+                cnc_connect_reference(self.cnc, bath_no)
+                self.log(f"    [CNC] Reference {ref_name} positioned (X bath {bath_no})")
             except Exception as e:
                 self.log(f"    ⚠ [CNC] Reference position error: {e}")
         else:

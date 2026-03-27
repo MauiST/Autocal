@@ -791,16 +791,17 @@ class MainWindow(QMainWindow):
         pos_lbl_x.setStyleSheet("color: #7a8290; font-size: 9px; letter-spacing: 2px;")
         gv_x.addWidget(pos_lbl_x)
 
-        for sensor_id, label in [
-            ('5003', 'Bath 1  (Ref 5003)'),
-            ('5004', 'Bath 2  (Ref 5004)'),
-            ('5088', 'Bath 3  (Ref 5088)'),
-            ('4999', 'Bath 4  (Ref 4999)'),
+        for bath_no, label in [
+            (1, 'Bath 1-1  (Ref 5003)'),
+            (2, 'Bath 2    (Ref 5004)'),
+            (3, 'Bath 3    (Ref 5088)'),
+            (4, 'Bath 4    (Ref 4999)'),
+            (5, 'Bath 1-2  (Ref 5003)'),
         ]:
             btn = QPushButton(label)
             btn.setFixedHeight(32)
             btn.clicked.connect(
-                lambda checked, s=sensor_id: self._cnc_move_reference(s)
+                lambda checked, b=bath_no: self._cnc_move_reference(b)
             )
             gv_x.addWidget(btn)
 
@@ -819,12 +820,8 @@ class MainWindow(QMainWindow):
         batch_positions = [
             (1, 1, 'Bath 1-1  Slot 1'),
             (1, 2, 'Bath 1-1  Slot 2'),
-            (1, 3, 'Bath 1-1  Slot 3'),
-            (1, 4, 'Bath 1-1  Slot 4'),
             (5, 1, 'Bath 1-2  Slot 1'),
             (5, 2, 'Bath 1-2  Slot 2'),
-            (5, 3, 'Bath 1-2  Slot 3'),
-            (5, 4, 'Bath 1-2  Slot 4'),
             (2, 1, 'Bath 2    Slot 1'),
             (2, 2, 'Bath 2    Slot 2'),
             (3, 1, 'Bath 3    Slot 1'),
@@ -1188,14 +1185,15 @@ class MainWindow(QMainWindow):
             self._cnc_config_entries[key] = entry
         v.addWidget(conn_grp)
 
-        # ── X axis -- Reference SPRT positions ────────────────
-        x_grp  = QGroupBox("X Axis  —  Reference SPRT  (4 positions)")
+        # ── X axis -- Reference positions ─────────────────────
+        x_grp  = QGroupBox("X Axis  —  Reference SPRT  (5 positions)")
         x_form = QFormLayout(x_grp)
         for key, label in [
-            ('cnc_x_ref_5003', 'Ref 5003  (Bath 1-1 / 1-2)  mm'),
-            ('cnc_x_ref_5004', 'Ref 5004  (Bath 2)           mm'),
-            ('cnc_x_ref_5088', 'Ref 5088  (Bath 3)           mm'),
-            ('cnc_x_ref_4999', 'Ref 4999  (Bath 4)           mm'),
+            ('cnc_x_bath1_1', 'Bath 1-1  (Ref 5003)  mm'),
+            ('cnc_x_bath2',   'Bath 2    (Ref 5004)  mm'),
+            ('cnc_x_bath3',   'Bath 3    (Ref 5088)  mm'),
+            ('cnc_x_bath4',   'Bath 4    (Ref 4999)  mm'),
+            ('cnc_x_bath1_2', 'Bath 1-2  (Ref 5003)  mm'),
         ]:
             entry = QLineEdit(config.get(key, ''))
             entry.setFont(QFont("Courier New", 10))
@@ -1204,17 +1202,13 @@ class MainWindow(QMainWindow):
         v.addWidget(x_grp)
 
         # ── Y axis -- Batch sensor positions ──────────────────
-        y_grp  = QGroupBox("Y Axis  —  Batch Sensors  (14 positions)")
+        y_grp  = QGroupBox("Y Axis  —  Batch Sensors  (10 positions)")
         y_form = QFormLayout(y_grp)
         for key, label in [
             ('cnc_y_bath1_1_slot_1', 'Bath 1-1  Slot 1  mm'),
             ('cnc_y_bath1_1_slot_2', 'Bath 1-1  Slot 2  mm'),
-            ('cnc_y_bath1_1_slot_3', 'Bath 1-1  Slot 3  mm'),
-            ('cnc_y_bath1_1_slot_4', 'Bath 1-1  Slot 4  mm'),
             ('cnc_y_bath1_2_slot_1', 'Bath 1-2  Slot 1  mm'),
             ('cnc_y_bath1_2_slot_2', 'Bath 1-2  Slot 2  mm'),
-            ('cnc_y_bath1_2_slot_3', 'Bath 1-2  Slot 3  mm'),
-            ('cnc_y_bath1_2_slot_4', 'Bath 1-2  Slot 4  mm'),
             ('cnc_y_bath2_slot_1',   'Bath 2    Slot 1  mm'),
             ('cnc_y_bath2_slot_2',   'Bath 2    Slot 2  mm'),
             ('cnc_y_bath3_slot_1',   'Bath 3    Slot 1  mm'),
@@ -1338,17 +1332,17 @@ class MainWindow(QMainWindow):
         except Exception as e:
             self.log(f"  ⚠ [CNC] Retract error: {e}")
 
-    def _cnc_move_reference(self, sensor_id):
-        """Move X to stored position for a reference sensor."""
+    def _cnc_move_reference(self, bath_no):
+        """Move X to stored position for a bath reference."""
         if self.cnc is None:
             self.log("  ⚠ [CNC] Not connected")
             return
         try:
             m = self._cnc
             if m is None: return
-            m.cnc_move_reference(self.cnc, sensor_id)
-            x = config.CNC_X_POSITIONS.get(sensor_id, '?')
-            self.log(f"  [CNC] X moved to Ref {sensor_id}  ({x} mm)")
+            m.cnc_move_reference(self.cnc, bath_no)
+            x = config.CNC_X_POSITIONS.get(bath_no, '?')
+            self.log(f"  [CNC] X moved to bath {bath_no}  ({x} mm)")
         except Exception as e:
             self.log(f"  ⚠ [CNC] X move error: {e}")
 

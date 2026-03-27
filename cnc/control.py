@@ -100,36 +100,36 @@ def cnc_close(cnc):
 # REFERENCE SPRT POSITIONING  (X axis)
 # ------------------------------------------------------------------
 
-def cnc_move_reference(cnc, sensor_id):
+def cnc_move_reference(cnc, bath_no):
     """
-    Move X axis to the position for the given reference sensor.
+    Move X axis to the reference position for the given bath.
     Does NOT connect (lower Z) -- call cnc_connect_batch() to lower Z.
 
     Args:
-        cnc       : serial.Serial
-        sensor_id : str -- '5003', '5004', '5088' or '4999'
+        cnc     : serial.Serial
+        bath_no : int -- 1=Bath1-1, 2=Bath2, 3=Bath3, 4=Bath4, 5=Bath1-2
     """
     import config
-    x_pos = config.CNC_X_POSITIONS.get(sensor_id)
+    x_pos = config.CNC_X_POSITIONS.get(bath_no)
     if x_pos is None:
         raise ValueError(
-            f"No X position configured for reference sensor {sensor_id}"
+            f"No X position configured for bath_no {bath_no}"
         )
     _send_command(cnc, f'G90 G0 X{x_pos:.3f} F{config.CNC_FEED_RATE}')
     _wait_idle(cnc)
 
 
-def cnc_connect_reference(cnc, sensor_id):
+def cnc_connect_reference(cnc, bath_no):
     """
-    Move X to the reference sensor position.
+    Move X to the reference position for the given bath.
     Z is NOT lowered here -- call cnc_connect_batch() to lower Z
     after positioning both X and Y.
 
     Args:
-        cnc       : serial.Serial
-        sensor_id : str -- '5003', '5004', '5088' or '4999'
+        cnc     : serial.Serial
+        bath_no : int -- 1=Bath1-1, 2=Bath2, 3=Bath3, 4=Bath4, 5=Bath1-2
     """
-    cnc_move_reference(cnc, sensor_id)
+    cnc_move_reference(cnc, bath_no)
 
 
 # ------------------------------------------------------------------
