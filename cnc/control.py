@@ -225,6 +225,17 @@ def cnc_home(cnc):
     _wait_idle(cnc, timeout=60)   # homing can take longer
 
 
+def cnc_park(cnc):
+    """
+    Raise Z to clear position then move X and Y to 0.
+    Called after each bath to park the machine between measurement steps.
+    """
+    import config
+    _z_clear(cnc, config.CNC_Z_CLEAR, config.CNC_FEED_RATE)
+    _send_command(cnc, f'G90 G0 X0.000 Y0.000 F{config.CNC_FEED_RATE}')
+    _wait_idle(cnc)
+
+
 def cnc_get_position(cnc):
     """
     Query current machine position.
@@ -281,8 +292,13 @@ def _send_command(cnc, cmd, wait_ok=True):
 def _wait_idle(cnc, timeout=MOVE_TIMEOUT):
     """
     Poll GRBL status until machine reports 'Idle'.
+    The initial 0.3 s delay gives GRBL time to transition from Idle
+    to Run before we start polling -- without it, a fast poll can catch
+    the brief Idle window that exists right after a command is accepted
+    but before motion actually starts, causing _wait_idle to return early.
     Raises Exception on timeout.
     """
+    time.sleep(0.3)   # let GRBL transition Idle → Run before first poll
     deadline = time.time() + timeout
     while time.time() < deadline:
         cnc.write(b'?\n')

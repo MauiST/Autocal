@@ -102,15 +102,18 @@ class MeasurementWorker(QThread):
                     break
                 self.log(f"    Batch {bn}  Slot {slot}")
                 self._cnc_connect_batch(bath_no, slot, bn)
+                self._cnc_pre_measure_wait()
                 try:
                     self._measure_batch(bath_no, bn, slot, ref_name)
                 except Exception as e:
                     self.log(f"    ⚠ [WORKER] Unhandled error in batch {bn}: {e}")
                     import traceback
                     self.log(traceback.format_exc())
+                self._cnc_post_measure_wait()
                 self._cnc_disconnect_batch(slot)
                 self.batch_done_signal.emit(bn)
 
+            self._cnc_park_after_bath()
             self._cnc_disconnect_reference(ref_name, bath_no)
             self.bath_done_signal.emit(bath_no)
             processed += 1
@@ -160,6 +163,42 @@ class MeasurementWorker(QThread):
                 self.log(f"    ⚠ [CNC] Disconnect error: {e}")
         else:
             self.log(f"    [CNC] {'DISABLED' if self.cnc_disabled else 'Simulation'} -- slot {slot} disconnected (manual)")
+
+    def _cnc_pre_measure_wait(self):
+        """Wait after CNC reaches position before starting measurement."""
+        if not (self.cnc and not self.cnc_disabled):
+            return
+        delay = config.CNC_PRE_MEASURE_DELAY
+        if delay > 0:
+            self.log(f"    [CNC] In position -- waiting {delay}s before measurement...")
+            for _ in range(delay):
+                if not self._running:
+                    break
+                time.sleep(1)
+
+    def _cnc_post_measure_wait(self):
+        """Wait after measurement completes before disconnecting."""
+        if not (self.cnc and not self.cnc_disabled):
+            return
+        delay = config.CNC_POST_MEASURE_DELAY
+        if delay > 0:
+            self.log(f"    [CNC] Measurement done -- waiting {delay}s before disconnect...")
+            for _ in range(delay):
+                if not self._running:
+                    break
+                time.sleep(1)
+
+    def _cnc_park_after_bath(self):
+        """After all batches for a bath, raise Z and return XY to home (0, 0)."""
+        if self.cnc and not self.cnc_disabled:
+            try:
+                from cnc.control import cnc_park
+                cnc_park(self.cnc)
+                self.log(f"    [CNC] Parked at home (X=0 Y=0 Z={config.CNC_Z_CLEAR})")
+            except Exception as e:
+                self.log(f"    ⚠ [CNC] Park error: {e}")
+        else:
+            self.log(f"    [CNC] {'DISABLED' if self.cnc_disabled else 'Simulation'} -- park (manual)")
 
     # ------------------------------------------------------------------
     # BATCH MEASUREMENT

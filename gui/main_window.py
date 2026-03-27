@@ -355,8 +355,8 @@ class MainWindow(QMainWindow):
         self.nav_buttons = []
         pages = [
             ("▶", "Session"),
-            ("⚙", "CNC"),
             ("📊", "Progress"),
+            ("⚙", "CNC"),
             ("🔧", "Config"),
         ]
         for icon, label in pages:
@@ -419,8 +419,8 @@ class MainWindow(QMainWindow):
         self.page_config   = self._build_config_page()
 
         self.stack.addWidget(self.page_session)
-        self.stack.addWidget(self.page_cnc)
         self.stack.addWidget(self.page_progress)
+        self.stack.addWidget(self.page_cnc)
         self.stack.addWidget(self.page_config)
 
         self._switch_page("Session")
@@ -437,11 +437,11 @@ class MainWindow(QMainWindow):
                 for label, btn in self.nav_buttons:
                     btn.setChecked(
                         self.stack.currentIndex() ==
-                        {"Session":0,"CNC":1,"Progress":2,"Config":3}.get(label, -1)
+                        {"Session":0,"Progress":1,"CNC":2,"Config":3}.get(label, -1)
                     )
                 return
 
-        pages = {"Session": 0, "CNC": 1, "Progress": 2, "Config": 3}
+        pages = {"Session": 0, "Progress": 1, "CNC": 2, "Config": 3}
         idx   = pages.get(name, 0)
         self.stack.setCurrentIndex(idx)
         for label, btn in self.nav_buttons:
@@ -670,28 +670,6 @@ class MainWindow(QMainWindow):
         )
         outer.addWidget(title)
 
-        # ── DISABLE CNC TOGGLE ────────────────────────────────
-        self._cnc_disable_btn = QPushButton("⚠  CNC DISABLED  —  Manual Mode")
-        self._cnc_disable_btn.setCheckable(True)
-        self._cnc_disable_btn.setChecked(False)
-        self._cnc_disable_btn.setFixedHeight(36)
-        self._cnc_disable_btn.setStyleSheet(
-            "QPushButton{"
-            "  border: 2px solid #7a8290; border-radius: 8px;"
-            "  color: #7a8290; font-weight: bold; font-size: 12px;"
-            "  background-color: transparent;"
-            "}"
-            "QPushButton:checked{"
-            "  border: 2px solid #c0614a; border-radius: 8px;"
-            "  color: white; font-weight: bold; font-size: 12px;"
-            "  background-color: #c0614a;"
-            "}"
-            "QPushButton:hover{ background-color: #e8e0d8; }"
-            "QPushButton:checked:hover{ background-color: #a04030; }"
-        )
-        self._cnc_disable_btn.toggled.connect(self._on_cnc_disable_toggled)
-        outer.addWidget(self._cnc_disable_btn)
-
         # Scroll area
         scroll   = QScrollArea()
         scroll.setWidgetResizable(True)
@@ -785,65 +763,39 @@ class MainWindow(QMainWindow):
         gv_conn.addStretch()
         cnc_h.addWidget(grp_conn)
 
-        # ── X AXIS -- Reference SPRT positions ────────────────
-        grp_x = QGroupBox("X Axis  —  Reference SPRT Positions")
-        gv_x  = QVBoxLayout(grp_x)
-        gv_x.setSpacing(6)
+        # ── SENSOR POSITIONS  (X + Y combined) ───────────────
+        grp_pos = QGroupBox("Sensor Positions  —  Move X and Y")
+        gv_pos  = QVBoxLayout(grp_pos)
+        gv_pos.setSpacing(6)
 
-        pos_lbl_x = QLabel("MOVE X TO POSITION")
-        pos_lbl_x.setStyleSheet("color: #7a8290; font-size: 9px; letter-spacing: 2px;")
-        gv_x.addWidget(pos_lbl_x)
+        pos_lbl = QLabel("MOVE TO POSITION  (X + Y from configuration)")
+        pos_lbl.setStyleSheet("color: #7a8290; font-size: 9px; letter-spacing: 2px;")
+        gv_pos.addWidget(pos_lbl)
 
-        for bath_no, label in [
-            (1, 'Bath 1-1  (Ref 5003)'),
-            (2, 'Bath 2    (Ref 5004)'),
-            (3, 'Bath 3    (Ref 5088)'),
-            (4, 'Bath 4    (Ref 4999)'),
-            (5, 'Bath 1-2  (Ref 5003)'),
-        ]:
+        sensor_positions = [
+            (1, 1, 'Bath 1  Slot 1'),
+            (1, 2, 'Bath 1  Slot 2'),
+            (1, 3, 'Bath 1  Slot 3'),
+            (1, 4, 'Bath 1  Slot 4'),
+            (2, 1, 'Bath 2  Slot 1'),
+            (2, 2, 'Bath 2  Slot 2'),
+            (3, 1, 'Bath 3  Slot 1'),
+            (3, 2, 'Bath 3  Slot 2'),
+            (4, 1, 'Bath 4  Slot 1'),
+            (4, 2, 'Bath 4  Slot 2'),
+        ]
+        pos_grid = QGridLayout()
+        pos_grid.setSpacing(5)
+        for i, (bath_no, slot, label) in enumerate(sensor_positions):
             btn = QPushButton(label)
             btn.setFixedHeight(32)
             btn.clicked.connect(
-                lambda checked, b=bath_no: self._cnc_move_reference(b)
-            )
-            gv_x.addWidget(btn)
-
-        gv_x.addStretch()
-        cnc_h.addWidget(grp_x)
-
-        # ── Y AXIS -- Batch sensor positions ──────────────────
-        grp_y = QGroupBox("Y Axis  —  Batch Sensor Positions")
-        gv_y  = QVBoxLayout(grp_y)
-        gv_y.setSpacing(6)
-
-        pos_lbl_y = QLabel("MOVE Y TO POSITION")
-        pos_lbl_y.setStyleSheet("color: #7a8290; font-size: 9px; letter-spacing: 2px;")
-        gv_y.addWidget(pos_lbl_y)
-
-        batch_positions = [
-            (1, 1, 'Bath 1-1  Slot 1'),
-            (1, 2, 'Bath 1-1  Slot 2'),
-            (5, 1, 'Bath 1-2  Slot 1'),
-            (5, 2, 'Bath 1-2  Slot 2'),
-            (2, 1, 'Bath 2    Slot 1'),
-            (2, 2, 'Bath 2    Slot 2'),
-            (3, 1, 'Bath 3    Slot 1'),
-            (3, 2, 'Bath 3    Slot 2'),
-            (4, 1, 'Bath 4    Slot 1'),
-            (4, 2, 'Bath 4    Slot 2'),
-        ]
-        btn_grid = QGridLayout()
-        btn_grid.setSpacing(5)
-        for i, (bath_no, slot, label) in enumerate(batch_positions):
-            btn = QPushButton(label)
-            btn.setFixedHeight(30)
-            btn.clicked.connect(
                 lambda checked, b=bath_no, s=slot: self._cnc_move_batch(b, s)
             )
-            btn_grid.addWidget(btn, i // 2, i % 2)
-        gv_y.addLayout(btn_grid)
-        gv_y.addStretch()
-        cnc_h.addWidget(grp_y)
+            pos_grid.addWidget(btn, i // 2, i % 2)
+        gv_pos.addLayout(pos_grid)
+        gv_pos.addStretch()
+        cnc_h.addWidget(grp_pos)
 
         v.addLayout(cnc_h)
 
@@ -1182,6 +1134,8 @@ class MainWindow(QMainWindow):
             ('cnc_feed_rate', 'Feed rate  (mm/min)'),
             ('cnc_z_connect', 'Z connect depth  (mm)'),
             ('cnc_z_clear',   'Z clear position  (mm)'),
+            ('cnc_pre_measure_delay',  'Pre-measure delay  (s)'),
+            ('cnc_post_measure_delay', 'Post-measure delay  (s)'),
         ]:
             entry = QLineEdit(config.get(key, ''))
             conn_form.addRow(label, entry)
@@ -1208,16 +1162,16 @@ class MainWindow(QMainWindow):
         y_grp  = QGroupBox("Y Axis  —  Batch Sensors  (10 positions)")
         y_form = QFormLayout(y_grp)
         for key, label in [
-            ('cnc_y_bath1_1_slot_1', 'Bath 1-1  Slot 1  mm'),
-            ('cnc_y_bath1_1_slot_2', 'Bath 1-1  Slot 2  mm'),
-            ('cnc_y_bath1_2_slot_1', 'Bath 1-2  Slot 1  mm'),
-            ('cnc_y_bath1_2_slot_2', 'Bath 1-2  Slot 2  mm'),
-            ('cnc_y_bath2_slot_1',   'Bath 2    Slot 1  mm'),
-            ('cnc_y_bath2_slot_2',   'Bath 2    Slot 2  mm'),
-            ('cnc_y_bath3_slot_1',   'Bath 3    Slot 1  mm'),
-            ('cnc_y_bath3_slot_2',   'Bath 3    Slot 2  mm'),
-            ('cnc_y_bath4_slot_1',   'Bath 4    Slot 1  mm'),
-            ('cnc_y_bath4_slot_2',   'Bath 4    Slot 2  mm'),
+            ('cnc_y_bath1_slot_1', 'Bath 1  Slot 1  mm'),
+            ('cnc_y_bath1_slot_2', 'Bath 1  Slot 2  mm'),
+            ('cnc_y_bath1_slot_3', 'Bath 1  Slot 3  mm'),
+            ('cnc_y_bath1_slot_4', 'Bath 1  Slot 4  mm'),
+            ('cnc_y_bath2_slot_1', 'Bath 2  Slot 1  mm'),
+            ('cnc_y_bath2_slot_2', 'Bath 2  Slot 2  mm'),
+            ('cnc_y_bath3_slot_1', 'Bath 3  Slot 1  mm'),
+            ('cnc_y_bath3_slot_2', 'Bath 3  Slot 2  mm'),
+            ('cnc_y_bath4_slot_1', 'Bath 4  Slot 1  mm'),
+            ('cnc_y_bath4_slot_2', 'Bath 4  Slot 2  mm'),
         ]:
             entry = QLineEdit(config.get(key, ''))
             entry.setFont(QFont("Courier New", 10))
@@ -1350,18 +1304,25 @@ class MainWindow(QMainWindow):
             self.log(f"  ⚠ [CNC] X move error: {e}")
 
     def _cnc_move_batch(self, bath_no, slot):
-        """Move Y to stored position for a bath/slot."""
+        """Move X then Y to configured position for a bath/slot."""
         if self.cnc is None:
             self.log("  ⚠ [CNC] Not connected")
             return
         try:
             m = self._cnc
             if m is None: return
+            # Bath 1 slots 3-4 use the Bath 1-2 X reference position
+            if bath_no == 1 and slot >= 3:
+                x_bath = 5
+            else:
+                x_bath = bath_no
+            m.cnc_move_reference(self.cnc, x_bath)
             m.cnc_move_batch(self.cnc, bath_no, slot)
+            x = config.CNC_X_POSITIONS.get(x_bath, '?')
             y = config.CNC_Y_POSITIONS.get((bath_no, slot), '?')
-            self.log(f"  [CNC] Y moved to Bath {bath_no} Slot {slot}  ({y} mm)")
+            self.log(f"  [CNC] Bath {bath_no} Slot {slot}  →  X={x} mm, Y={y} mm")
         except Exception as e:
-            self.log(f"  ⚠ [CNC] Y move error: {e}")
+            self.log(f"  ⚠ [CNC] Move error: {e}")
 
     # ----------------------------------------------------------
     # SENSOR LIST + SKIP
