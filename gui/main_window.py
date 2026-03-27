@@ -286,7 +286,7 @@ class MainWindow(QMainWindow):
         port = config.CNC_PORT
         baud = config.CNC_BAUD
         self.log(f"  Connecting to CNC on {port}...")
-        cnc_mod = self._cnc_module
+        cnc_mod = self._cnc
         if cnc_mod is None:
             self.log("  [CNC] cnc.control not available -- CNC disabled.")
             self._set_status(self.cnc_dot, self.cnc_lbl, "CNC", False)
