@@ -21,6 +21,7 @@ from PySide6.QtWidgets import (
 )
 
 import config
+from gui.styles import NEU_STYLE
 
 BATCH_SIZE = 6
 
@@ -154,6 +155,7 @@ class AddSensorsDialog(QDialog):
         self.setWindowTitle("Add Sensors  —  Senmatic Autocal")
         self.resize(880, 730)
         self.setMinimumSize(700, 560)
+        self.setStyleSheet(NEU_STYLE)
         self._build()
         self._refresh_all()
 

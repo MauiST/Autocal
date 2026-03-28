@@ -1457,12 +1457,23 @@ class MainWindow(QMainWindow):
     # ----------------------------------------------------------
     def _open_add_sensors(self):
         """Open the Add Sensors dialog."""
-        if not self.conn:
-            QMessageBox.warning(self, "No Database", "No database connection.")
-            return
-        from gui.add_sensors_dialog import AddSensorsDialog
-        dlg = AddSensorsDialog(self.conn, parent=self)
-        dlg.exec()
+        try:
+            if not self.conn:
+                QMessageBox.warning(
+                    self, "No Database",
+                    f"No database connection.\n\nExpected DB at:\n{config.DB_PATH}\n\n"
+                    "Run  python create_db.py  to create it."
+                )
+                return
+            from gui.add_sensors_dialog import AddSensorsDialog
+            dlg = AddSensorsDialog(self.conn, parent=self)
+            dlg.exec()
+        except Exception as e:
+            import traceback
+            QMessageBox.critical(
+                self, "Add Sensors Error",
+                f"{e}\n\n{traceback.format_exc()}"
+            )
 
     def start_session(self):
         if not self.validate_settings():
