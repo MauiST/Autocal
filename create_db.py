@@ -45,6 +45,8 @@ def create_database():
             CertificateNo TEXT,
             Type          TEXT,
             Nominal       REAL,
+            Tag           TEXT,
+            Length        REAL,
             DateAdded     TEXT
         )
     """)
