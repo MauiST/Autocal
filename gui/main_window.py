@@ -633,8 +633,13 @@ class MainWindow(QMainWindow):
         sensor_v.addLayout(btn_h)
         v.addWidget(sensor_group)
 
-        # ── Start / Stop ───────────────────────────────────────
+        # ── Start / Stop / Add Sensors ─────────────────────────
         ctrl_h = QHBoxLayout()
+        add_sensors_btn = QPushButton("⊕  Add Sensors")
+        add_sensors_btn.setObjectName("batchesBtn")
+        add_sensors_btn.setFixedHeight(38)
+        add_sensors_btn.clicked.connect(self._open_add_sensors)
+
         self.start_btn = QPushButton("▶   START SESSION")
         self.start_btn.setObjectName("startBtn")
         self.start_btn.setFixedHeight(38)
@@ -646,6 +651,7 @@ class MainWindow(QMainWindow):
         self.stop_btn.clicked.connect(self.stop_session)
         self.stop_btn.setEnabled(False)
 
+        ctrl_h.addWidget(add_sensors_btn)
         ctrl_h.addStretch()
         ctrl_h.addWidget(self.start_btn)
         ctrl_h.addWidget(self.stop_btn)
@@ -1449,6 +1455,15 @@ class MainWindow(QMainWindow):
     # ----------------------------------------------------------
     # SESSION CONTROL
     # ----------------------------------------------------------
+    def _open_add_sensors(self):
+        """Open the Add Sensors dialog."""
+        if not self.conn:
+            QMessageBox.warning(self, "No Database", "No database connection.")
+            return
+        from gui.add_sensors_dialog import AddSensorsDialog
+        dlg = AddSensorsDialog(self.conn, parent=self)
+        dlg.exec()
+
     def start_session(self):
         if not self.validate_settings():
             return
